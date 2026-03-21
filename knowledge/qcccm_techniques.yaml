@@ -1,0 +1,157 @@
+- name: "Multi-start VQE optimization"
+  category: optimization
+  description: >
+    Run VQE from multiple random initial parameter sets and keep the best.
+    Avoids local minima in the variational landscape.
+  applicable_when: "VQE results are inconsistent across seeds or stuck in local minima"
+  code_pattern: |
+    results = [run_vqe(params, n_layers=L, max_steps=200) for _ in range(5)]
+    best = min(results, key=lambda r: r[0].energy)
+  tags: [vqe, optimization, multi-start]
+
+- name: "QAOA depth sweep"
+  category: ansatz
+  description: >
+    Systematically increase QAOA depth p from 1 to 10. Higher depth can
+    approximate the ground state better but increases optimization difficulty.
+  applicable_when: "QAOA at fixed depth underperforms; need to find optimal depth-performance tradeoff"
+  code_pattern: |
+    for depth in range(1, 11):
+        result, t = run_qaoa(params, depth=depth, max_steps=300)
+  tags: [qaoa, depth, ansatz]
+
+- name: "Trotter number optimization for PIMC"
+  category: simulation
+  description: >
+    Increase Trotter slices (n_trotter) to reduce Trotter error in path-integral
+    Monte Carlo. More slices = more accurate quantum simulation but slower.
+  applicable_when: "PIMC energy doesn't converge or shows systematic bias from exact"
+  code_pattern: |
+    for n_trotter in [4, 8, 16, 32]:
+        result, t = run_pimc(params, n_trotter=n_trotter, n_steps=5000)
+  tags: [pimc, trotter, convergence]
+
+- name: "Transverse field annealing schedule"
+  category: simulation
+  description: >
+    Instead of fixed transverse field Gamma, anneal from large Gamma (quantum
+    regime) to small Gamma (classical regime) during PIMC. Mimics quantum
+    annealing for better ground state finding.
+  applicable_when: "Fixed-Gamma PIMC doesn't find the ground state; system has complex energy landscape"
+  code_pattern: |
+    # Requires modifying PIMC call or implementing custom schedule
+    gammas = np.linspace(3.0, 0.1, n_anneal_steps)
+  tags: [pimc, annealing, transverse-field]
+
+- name: "Frustrated topology targeting"
+  category: model
+  description: >
+    Focus on graph topologies with high frustration index (many frustrated
+    triangles). Quantum methods have the largest advantage on frustrated systems
+    where classical MC gets trapped.
+  applicable_when: "Quantum advantage is near zero on simple topologies"
+  code_pattern: |
+    # EA bimodal on triangular/kagome lattice, or SK with high N
+    adj, J = ea_couplings(N, topology='triangular', disorder='bimodal', seed=seed)
+    fi = frustration_index(adj, J)  # target fi > 0.3
+  tags: [frustration, topology, quantum-advantage]
+
+- name: "Temperature sweep near glass transition"
+  category: model
+  description: >
+    Sweep temperature around the spin glass transition T_g. Quantum advantage
+    is typically largest just below T_g where classical MC freezes but quantum
+    tunneling can still escape metastable states.
+  applicable_when: "Experiments use only a few temperature points or are far from T_g"
+  code_pattern: |
+    # For SK model, T_g ≈ 1.0; for EA on square lattice, T_g ≈ 0.9
+    temps = np.linspace(0.5, 1.5, 20)
+  tags: [temperature, phase-transition, spin-glass]
+
+- name: "VQE learning rate schedule"
+  category: optimization
+  description: >
+    Use cosine annealing or exponential decay for VQE learning rate instead
+    of fixed. Helps escape shallow minima early, then fine-tune near the solution.
+  applicable_when: "VQE energy oscillates or converges slowly"
+  code_pattern: |
+    # Modify VQE internals or use optax schedule
+    schedule = optax.cosine_decay_schedule(init_value=0.1, decay_steps=200)
+  tags: [vqe, learning-rate, optimization]
+
+- name: "Replica comparison"
+  category: analysis
+  description: >
+    Run multiple replicas (different seeds for the same disorder realization)
+    and compute overlap distribution P(q). Wide P(q) indicates spin glass phase
+    where quantum methods may have advantage.
+  applicable_when: "Need to confirm spin glass phase before comparing solvers"
+  code_pattern: |
+    overlaps = []
+    for s1, s2 in combinations(replicas, 2):
+        overlaps.append(overlap(s1.spins, s2.spins))
+    P_q = overlap_distribution(overlaps)
+  tags: [replica, overlap, diagnosis]
+
+- name: "System size scaling"
+  category: analysis
+  description: >
+    Test quantum advantage at increasing N (4, 6, 8, 10, 12, 14, 16, 18, 20)
+    with fixed topology and disorder. Quantum advantage may emerge or grow
+    with system size due to increasing frustration complexity.
+  applicable_when: "Quantum advantage observed at one N but unclear if it scales"
+  code_pattern: |
+    for N in range(4, 22, 2):
+        params = SocialSpinGlassParams(n_agents=N, ...)
+  tags: [scaling, system-size, finite-size]
+
+- name: "Mixed solver strategy"
+  category: solver
+  description: >
+    Use classical Metropolis output as initial state for VQE/QAOA. Classical
+    pre-optimization provides a warm start, then quantum optimizer refines.
+  applicable_when: "Pure quantum solvers start far from ground state; classical gets close but not exact"
+  code_pattern: |
+    c_result, _ = run_classical(params, n_steps=5000)
+    # Use c_result.spins as VQE initial state (requires solver modification)
+  tags: [hybrid, warm-start, solver]
+
+- name: "Disorder averaging"
+  category: analysis
+  description: >
+    Average quantum advantage over many disorder realizations (seeds) for the
+    same (N, T, topology) to get statistically meaningful comparison. Single
+    seed results can be misleading due to instance-to-instance variation.
+  applicable_when: "Results vary wildly across seeds; need robust quantum advantage estimate"
+  code_pattern: |
+    advantages = []
+    for seed in range(50):
+        adj, J = sk_couplings(N, seed=seed)
+        # ... run both solvers ...
+        advantages.append(compute_quantum_advantage(E_c, E_q, E_exact))
+    mean_advantage = np.mean(advantages)
+  tags: [disorder-average, statistics, robustness]
+
+- name: "Random field Ising model"
+  category: model
+  description: >
+    Add random external fields h_i ~ N(0, sigma_h) to the Hamiltonian. This
+    breaks spin symmetry and can create new metastable states where quantum
+    tunneling provides advantage.
+  applicable_when: "All experiments use zero external field; unexplored parameter dimension"
+  code_pattern: |
+    fields = np.random.default_rng(seed).normal(0, sigma_h, size=N)
+    params = SocialSpinGlassParams(n_agents=N, ..., fields=fields)
+  tags: [random-field, disorder, model]
+
+- name: "Topology comparison grid"
+  category: model
+  description: >
+    Compare quantum advantage across topologies (complete, square, chain, ring,
+    star, random ER, scale-free) at matched N and disorder strength. Different
+    connectivity creates different frustration landscapes.
+  applicable_when: "Only one or two topologies explored; need systematic comparison"
+  code_pattern: |
+    for topo in ['complete', 'square', 'chain', 'ring', 'star', 'random', 'scale-free']:
+        adj, J = ea_couplings(N, topology=topo, ...)
+  tags: [topology, comparison, systematic]
