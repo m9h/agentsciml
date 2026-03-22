@@ -9,8 +9,14 @@ def test_add_and_best(tmp_tree_path):
     tree = SolutionTree(path=tmp_tree_path)
 
     n1 = tree.add(code="print(1)", score=0.1, mutation_description="first")
-    n2 = tree.add(code="print(2)", score=0.5, parent_id=n1.id, generation=1, mutation_description="second")
-    n3 = tree.add(code="print(3)", score=0.3, parent_id=n1.id, generation=1, mutation_description="third")
+    n2 = tree.add(
+        code="print(2)", score=0.5, parent_id=n1.id,
+        generation=1, mutation_description="second",
+    )
+    tree.add(
+        code="print(3)", score=0.3, parent_id=n1.id,
+        generation=1, mutation_description="third",
+    )
 
     assert len(tree) == 3
     assert tree.best().id == n2.id
@@ -30,9 +36,9 @@ def test_children_and_max(tmp_tree_path):
 
 def test_select_parents(tmp_tree_path):
     tree = SolutionTree(path=tmp_tree_path)
-    n1 = tree.add(code="a", score=0.1, mutation_description="a")
+    tree.add(code="a", score=0.1, mutation_description="a")
     n2 = tree.add(code="b", score=0.9, mutation_description="b")
-    n3 = tree.add(code="c", score=0.5, mutation_description="c")
+    tree.add(code="c", score=0.5, mutation_description="c")
 
     rng = random.Random(42)
     parents = tree.select_parents(n=2, rng=rng)

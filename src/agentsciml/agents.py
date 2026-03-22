@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass, field
-from typing import Any, TypeVar
+from dataclasses import dataclass
+from typing import TypeVar
 
 import anthropic
 from pydantic import BaseModel
@@ -287,7 +287,7 @@ def parse_json_response(text: str, model_class: type[T]) -> T:
     if cleaned.startswith("```"):
         lines = cleaned.split("\n")
         # Remove first and last lines (``` markers)
-        lines = [l for l in lines[1:] if not l.strip().startswith("```")]
+        lines = [ln for ln in lines[1:] if not ln.strip().startswith("```")]
         cleaned = "\n".join(lines)
 
     data = json.loads(cleaned)

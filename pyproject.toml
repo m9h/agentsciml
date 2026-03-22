@@ -15,6 +15,8 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
+    "pytest-cov>=6.0",
+    "ruff>=0.9",
 ]
 
 [project.scripts]
@@ -29,3 +31,22 @@ packages = ["src/agentsciml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "unit: Pure unit tests with no external dependencies",
+    "integration: Tests that mock external APIs but test module interactions",
+    "slow: Tests that take >5s (sandbox execution, full pipelines)",
+]
+
+[tool.coverage.run]
+source = ["agentsciml"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 60
+
+[tool.ruff]
+target-version = "py311"
+line-length = 99
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]

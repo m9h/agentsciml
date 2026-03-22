@@ -1,0 +1,259 @@
+# Technique knowledge base for dmipy diffusion MRI microstructure estimation.
+# Curated from dmipy documentation, diffusion MRI literature, and benchmark results.
+# Each technique follows the AgenticSciML TechniqueCard schema.
+
+- name: AMICO linear estimation
+  category: solver
+  description: >
+    Accelerated Microstructure Imaging via Convex Optimization. Reformulates
+    non-linear fitting as a linear inverse problem using a precomputed dictionary
+    of signal responses. 100-1000x faster than brute2fine with comparable accuracy
+    for simple models like NODDI.
+  applicable_when: >
+    Need fast voxelwise fitting for NODDI or Ball-Stick models on large datasets.
+    Not suitable for complex multi-compartment models with many free parameters.
+  code_pattern: |
+    from dmipy.optimizers import amico
+    model.fit(scheme, data, solver='amico')
+  tags: [solver, speed, noddi, linear]
+
+- name: Brute-to-fine optimization
+  category: solver
+  description: >
+    Two-stage optimizer: coarse grid search over parameter space followed by
+    gradient-based refinement from the best grid point. Robust against local
+    minima but slower than AMICO. Default dmipy optimizer.
+  applicable_when: >
+    Need reliable parameter estimates for any model. Good baseline solver
+    when accuracy matters more than speed.
+  code_pattern: |
+    model.fit(scheme, data, solver='brute2fine')
+  tags: [solver, robust, baseline]
+
+- name: MCMC sampling
+  category: solver
+  description: >
+    Markov Chain Monte Carlo sampling for full posterior distributions.
+    Provides uncertainty estimates per voxel. Very slow but gold standard
+    for parameter accuracy and uncertainty quantification.
+  applicable_when: >
+    Need uncertainty estimates or ground truth comparison. Use on small ROIs
+    or synthetic data where speed is not critical.
+  code_pattern: |
+    model.fit(scheme, data, solver='mcmc', Ns=10000, burnin=2000)
+  tags: [solver, uncertainty, gold-standard, slow]
+
+- name: MLP amortized inference
+  category: solver
+  description: >
+    Train a neural network (MLP) to directly predict tissue parameters from
+    signal vectors. Once trained, inference is near-instant. Requires GPU for
+    training. Accuracy depends on training data diversity.
+  applicable_when: >
+    Need sub-second whole-brain fitting. Good when the same model/protocol
+    is used repeatedly across subjects.
+  code_pattern: |
+    from dmipy_jax import fit_mlp
+    params = fit_mlp(model, scheme, data, n_epochs=100)
+  tags: [solver, gpu, fast, neural-network]
+
+- name: NODDI tissue model
+  category: model
+  description: >
+    Neurite Orientation Dispersion and Density Imaging. Three-compartment model:
+    intra-cellular (Watson-distributed sticks), extra-cellular (zeppelin),
+    CSF (isotropic ball). Standard clinical microstructure model with 3 free
+    parameters: icvf, od, isovf.
+  applicable_when: >
+    Clinical diffusion MRI with at least 2 b-values (e.g. b=1000,2000).
+    Most widely validated microstructure model.
+  code_pattern: |
+    from dmipy.signal_models import cylinder_models, gaussian_models, distributions
+    stick = cylinder_models.C1Stick()
+    zeppelin = gaussian_models.G2Zeppelin()
+    ball = gaussian_models.G1Ball()
+    watson = distributions.SD1Watson()
+    noddi = MultiCompartmentModel([watson(stick), zeppelin, ball])
+  tags: [model, clinical, noddi, 3-compartment]
+
+- name: MCMDI multi-compartment model
+  category: model
+  description: >
+    Multi-Compartment Microscopic Diffusion Imaging. Extends NODDI with
+    Bingham distribution for crossing fibers and additional tissue compartments.
+    Better captures complex white matter geometry.
+  applicable_when: >
+    Multi-shell data (3+ b-values) with high angular resolution. Regions with
+    known fiber crossings or complex microstructure.
+  code_pattern: |
+    from dmipy.signal_models import distributions
+    bingham = distributions.SD2Bingham()
+    mcmdi = MultiCompartmentModel([bingham(stick), zeppelin, ball])
+  tags: [model, advanced, crossings, bingham]
+
+- name: Ball-Stick model
+  category: model
+  description: >
+    Simplest two-compartment model: one isotropic ball (CSF/extra-cellular)
+    and one stick (intra-cellular). Only 2 free parameters per fiber population.
+    Fast to fit, good for tractography, limited for microstructure quantification.
+  applicable_when: >
+    Single-shell data or when only fiber orientation is needed.
+    Good baseline model for comparing solver performance.
+  code_pattern: |
+    stick = cylinder_models.C1Stick()
+    ball = gaussian_models.G1Ball()
+    model = MultiCompartmentModel([stick, ball])
+  tags: [model, simple, baseline, tractography]
+
+- name: Spherical mean technique
+  category: preprocessing
+  description: >
+    Average signal across gradient directions per shell to remove orientation
+    dependence. Enables rotationally-invariant fitting of axonal density and
+    diffusivity without knowing fiber orientations.
+  applicable_when: >
+    Want orientation-invariant parameter estimates. Useful when fiber
+    orientation estimation is noisy or not needed.
+  code_pattern: |
+    from dmipy.core.modeling_framework import MultiCompartmentSphericalMeanModel
+    sm_model = MultiCompartmentSphericalMeanModel([stick, ball])
+  tags: [preprocessing, orientation-invariant, robust]
+
+- name: Multi-shell acquisition optimization
+  category: acquisition
+  description: >
+    Optimize b-values and gradient directions for a specific model. More shells
+    and higher b-max improve parameter estimation for complex models. Optimal
+    shell ratio depends on tissue properties.
+  applicable_when: >
+    Designing acquisition protocols or comparing model performance across
+    different acquisition strategies.
+  code_pattern: |
+    # Compare across b-value configurations
+    for b_max in [1000, 2000, 3000, 5000]:
+        scheme = create_scheme(b_values=[0, 1000, b_max], n_directions=60)
+        result = model.fit(scheme, signal)
+  tags: [acquisition, protocol-design, optimization]
+
+- name: Regularized fitting with TV penalty
+  category: solver
+  description: >
+    Total variation regularization enforces spatial smoothness in parameter
+    maps. Reduces noise in voxelwise estimates by penalizing large gradients
+    between neighboring voxels.
+  applicable_when: >
+    Noisy data or low-SNR regions. Especially helpful for parameters like
+    orientation dispersion that are noisy at the voxel level.
+  code_pattern: |
+    from dmipy.optimizers import tv_regularized
+    params = tv_regularized.fit(model, scheme, data, lambda_tv=0.1)
+  tags: [solver, regularization, spatial, denoising]
+
+- name: Synthetic data validation
+  category: analysis
+  description: >
+    Generate synthetic signals from known ground truth parameters, add noise,
+    and evaluate fitting accuracy. Gold standard for method validation —
+    avoids circularity of real data where ground truth is unknown.
+  applicable_when: >
+    Validating a new model or solver combination. Required before deploying
+    on real data. Compute RMSE, bias, and variance of recovered parameters.
+  code_pattern: |
+    signal = model.simulate_signal(scheme, ground_truth_params)
+    noisy_signal = signal + np.random.normal(0, 1/snr, signal.shape)
+    estimated = model.fit(scheme, noisy_signal)
+    rmse = np.sqrt(np.mean((estimated - ground_truth_params)**2))
+  tags: [analysis, validation, synthetic, ground-truth]
+
+- name: Noise floor correction
+  category: preprocessing
+  description: >
+    Rician/non-central chi noise in magnitude MRI creates a positive bias
+    at low SNR. Apply noise floor correction (Koay inversion) or use
+    complex-valued data to avoid systematic overestimation of signal.
+  applicable_when: >
+    High b-value data (b>3000) where SNR is low. Essential for accurate
+    estimation of fast-diffusing compartments.
+  code_pattern: |
+    from dmipy.utils.noise import correct_noise_floor
+    corrected = correct_noise_floor(data, sigma=noise_level)
+  tags: [preprocessing, noise, rician, correction]
+
+- name: Parameter initialization from simpler model
+  category: optimization
+  description: >
+    Fit a simpler model (Ball-Stick) first, then use its parameter estimates
+    to initialize a more complex model (NODDI, MCMDI). Reduces optimization
+    time and avoids poor local minima.
+  applicable_when: >
+    Complex models with many parameters where random initialization leads
+    to convergence problems or long fitting times.
+  code_pattern: |
+    simple_result = simple_model.fit(scheme, data, solver='brute2fine')
+    complex_model.fit(scheme, data, solver='brute2fine',
+                     initial_params=simple_result.parameters)
+  tags: [optimization, initialization, warm-start]
+
+- name: Cross-validation across datasets
+  category: analysis
+  description: >
+    Train/optimize on one dataset, evaluate on another. Tests generalization
+    of model/solver choices. Use ds003563 for development and ds004910 for
+    holdout validation.
+  applicable_when: >
+    Comparing approaches to ensure they generalize beyond a single dataset.
+    Essential for any result claiming robustness.
+  code_pattern: |
+    result_train = model.fit(scheme_train, data_train)
+    result_test = model.fit(scheme_test, data_test)
+    generalization_gap = abs(rmse_test - rmse_train)
+  tags: [analysis, validation, generalization, cross-dataset]
+
+- name: SNR-stratified evaluation
+  category: analysis
+  description: >
+    Evaluate fitting accuracy separately for high-SNR and low-SNR voxels.
+    Models may perform well on average but fail in regions with low SNR
+    (e.g., CSF boundary, high b-value).
+  applicable_when: >
+    Understanding where a model fails. Useful for identifying if noise
+    robustness is the limiting factor vs. model misspecification.
+  code_pattern: |
+    snr_map = signal_b0 / noise_std
+    high_snr_mask = snr_map > 20
+    low_snr_mask = snr_map < 10
+    rmse_high = compute_rmse(params[high_snr_mask], truth[high_snr_mask])
+    rmse_low = compute_rmse(params[low_snr_mask], truth[low_snr_mask])
+  tags: [analysis, noise, stratified, diagnostic]
+
+- name: Ensemble model averaging
+  category: model
+  description: >
+    Fit multiple models and average their parameter estimates (or use
+    information-theoretic model selection per voxel). Reduces model
+    misspecification bias at the cost of fitting time.
+  applicable_when: >
+    Uncertain which model is best for a given tissue region. Can improve
+    robustness at the cost of interpretability.
+  code_pattern: |
+    results = [m.fit(scheme, data) for m in [noddi, mcmdi, ballstick]]
+    aic_weights = compute_aic_weights([r.aic for r in results])
+    averaged_params = sum(w * r.params for w, r in zip(aic_weights, results))
+  tags: [model, ensemble, model-selection, averaging]
+
+- name: Compartment number optimization
+  category: model
+  description: >
+    Systematically vary the number of compartments (1, 2, 3, 4) and use
+    BIC/AIC to find the optimal model complexity. Over-parameterized models
+    fit noise; under-parameterized models miss tissue features.
+  applicable_when: >
+    Exploring whether adding compartments improves fit quality beyond what
+    can be explained by additional free parameters.
+  code_pattern: |
+    for n_compartments in [1, 2, 3, 4]:
+        model = build_model(n_compartments)
+        result = model.fit(scheme, data)
+        bic = compute_bic(result.log_likelihood, n_params, n_voxels)
+  tags: [model, complexity, model-selection, bic]

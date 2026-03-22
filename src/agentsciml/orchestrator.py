@@ -17,8 +17,6 @@ import anthropic
 
 from .adapters.base import ProjectAdapter
 from .agents import (
-    REGISTRY,
-    SONNET,
     call_agent,
     extract_code,
     parse_json_response,
@@ -27,9 +25,7 @@ from .cost import CostTracker
 from .knowledge import format_techniques_for_prompt, load_techniques
 from .protocols import (
     AnalysisReport,
-    CriticReport,
     MutationProposal,
-    ScoredResult,
     SolutionRecord,
     TechniqueCard,
 )
@@ -76,7 +72,10 @@ class Orchestrator:
     def run(self) -> SolutionRecord | None:
         """Execute the full evolutionary loop. Returns the best solution."""
         logger.info("Starting AgenticSciML orchestrator")
-        logger.info("Budget: $%.2f | Max generations: %d", self.cost.budget_usd, self.max_generations)
+        logger.info(
+            "Budget: $%.2f | Max generations: %d",
+            self.cost.budget_usd, self.max_generations,
+        )
 
         # Phase 1: Init — load context
         context = self.adapter.get_context()
@@ -291,7 +290,10 @@ class Orchestrator:
                 critic_docs = {
                     "analysis": analysis.model_dump_json(),
                     "proposer_output": proposer_response,
-                    "round_instruction": f"Round {round_num}/{N_DEBATE_ROUNDS}. Challenge the proposer's reasoning.",
+                    "round_instruction": (
+                        f"Round {round_num}/{N_DEBATE_ROUNDS}."
+                        " Challenge the proposer's reasoning."
+                    ),
                 }
                 critic_response = call_agent(
                     "critic", critic_docs, client=self.client, cost_tracker=self.cost

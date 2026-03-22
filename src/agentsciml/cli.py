@@ -50,7 +50,7 @@ def main(verbose: bool) -> None:
 )
 @click.option(
     "--adapter", "-a",
-    type=click.Choice(["qcccm", "auto"]),
+    type=click.Choice(["qcccm", "dmipy", "auto"]),
     default="auto",
     show_default=True,
     help="Project adapter to use",
@@ -63,12 +63,15 @@ def run(
     adapter: str,
 ) -> None:
     """Run the evolutionary multi-agent search on a project."""
+    from .adapters.dmipy import DmipyAdapter
     from .adapters.qcccm import QCCCMAdapter
     from .orchestrator import Orchestrator
 
     # Select adapter
     if adapter == "qcccm" or (adapter == "auto" and "quantum" in str(project).lower()):
         project_adapter = QCCCMAdapter(project)
+    elif adapter == "dmipy" or (adapter == "auto" and "dmipy" in str(project).lower()):
+        project_adapter = DmipyAdapter(project)
     else:
         click.echo(f"No adapter found for {project}. Use --adapter to specify.", err=True)
         sys.exit(1)
@@ -133,4 +136,7 @@ def status(project: Path) -> None:
     click.echo()
     click.echo("Top 5 solutions:")
     for i, node in enumerate(tree.top_k(5), 1):
-        click.echo(f"  {i}. [{node.id}] score={node.score:.6f} gen={node.generation} — {node.mutation_description}")
+        click.echo(
+            f"  {i}. [{node.id}] score={node.score:.6f}"
+            f" gen={node.generation} — {node.mutation_description}"
+        )

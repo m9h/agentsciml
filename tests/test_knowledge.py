@@ -19,3 +19,26 @@ def test_format_techniques(knowledge_dir):
     assert "[1]" in text
     assert "Multi-start VQE" in text
     assert "Use when:" in text
+
+
+def test_load_dmipy_techniques(knowledge_dir):
+    path = knowledge_dir / "dmipy_techniques.yaml"
+    techniques = load_techniques(path)
+    assert len(techniques) >= 14
+    assert all(t.name for t in techniques)
+    assert all(t.category for t in techniques)
+    assert all(t.description for t in techniques)
+    # Check key technique names exist
+    names = {t.name for t in techniques}
+    assert "AMICO linear estimation" in names
+    assert "NODDI tissue model" in names
+    assert "Brute-to-fine optimization" in names
+
+
+def test_format_dmipy_techniques(knowledge_dir):
+    path = knowledge_dir / "dmipy_techniques.yaml"
+    techniques = load_techniques(path)
+    text = format_techniques_for_prompt(techniques)
+    assert "[1]" in text
+    assert "AMICO" in text
+    assert "Use when:" in text
