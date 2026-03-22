@@ -60,10 +60,14 @@ class Orchestrator:
         tree_path = tree_path or (adapter.project_root / "autoresearch" / "tree.json")
         self.tree = SolutionTree(path=tree_path)
 
-        # Knowledge base
+        # Knowledge base — auto-detect from adapter type if not specified
         kf = knowledge_file
         if kf is None:
-            kf = DEFAULT_KNOWLEDGE_DIR / "qcccm_techniques.yaml"
+            adapter_name = type(adapter).__name__.lower()
+            if "dmipy" in adapter_name:
+                kf = DEFAULT_KNOWLEDGE_DIR / "dmipy_techniques.yaml"
+            else:
+                kf = DEFAULT_KNOWLEDGE_DIR / "qcccm_techniques.yaml"
         self.techniques: list[TechniqueCard] = []
         if kf.exists():
             self.techniques = load_techniques(kf)

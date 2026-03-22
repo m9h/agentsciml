@@ -7,6 +7,7 @@ No Docker needed — this runs the user's own code on their own hardware.
 from __future__ import annotations
 
 import logging
+import os
 import subprocess
 import time
 from dataclasses import dataclass
@@ -55,12 +56,15 @@ def run_experiment(
     status = "ok"
 
     try:
+        # Clear VIRTUAL_ENV so uv uses the target project's venv, not ours
+        env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
         proc = subprocess.run(
             ["uv", "run", "python", str(exp_path)],
             cwd=str(project_root),
             capture_output=True,
             text=True,
             timeout=timeout,
+            env=env,
         )
         wall_time = time.time() - t0
         returncode = proc.returncode
