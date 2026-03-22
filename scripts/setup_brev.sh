@@ -32,7 +32,13 @@ else
 fi
 echo ""
 
-# ── 2. Install uv ──────────────────────────────────────────────────
+# ── 2. Install system deps ────────────────────────────────────────
+echo ">>> Installing system dependencies (cmake, build-essential)..."
+sudo apt-get update -qq && sudo apt-get install -y -qq cmake build-essential > /dev/null 2>&1 || \
+    echo "NOTE: apt-get failed — cmake may need manual install."
+echo ""
+
+# ── 3. Install uv + pin Python 3.12 ──────────────────────────────
 echo ">>> Installing uv..."
 if command -v uv &> /dev/null; then
     echo "uv already installed: $(uv --version)"
@@ -42,9 +48,12 @@ else
     source "$HOME/.local/bin/env" 2>/dev/null || export PATH="$HOME/.local/bin:$PATH"
     echo "uv installed: $(uv --version)"
 fi
+
+echo ">>> Pinning Python 3.12 (3.14 too new for some deps)..."
+uv python install 3.12
 echo ""
 
-# ── 3. Clone repos ─────────────────────────────────────────────────
+# ── 4. Clone repos ─────────────────────────────────────────────────
 echo ">>> Cloning repositories..."
 cd "$HOME"
 
@@ -63,17 +72,17 @@ else
 fi
 echo ""
 
-# ── 4. Install agentsciml ──────────────────────────────────────────
+# ── 5. Install agentsciml ──────────────────────────────────────────
 echo ">>> Setting up agentsciml..."
 cd "$HOME/agentsciml"
-uv sync --dev
+uv sync --dev --python 3.12
 echo "agentsciml installed."
 echo ""
 
-# ── 5. Install dmipy + JAX GPU ─────────────────────────────────────
+# ── 6. Install dmipy + JAX GPU ─────────────────────────────────────
 echo ">>> Setting up dmipy..."
 cd "$HOME/dmipy"
-uv sync
+uv sync --python 3.12
 echo "dmipy installed."
 echo ""
 
@@ -85,7 +94,7 @@ uv pip install --upgrade "jax[cuda12]" 2>/dev/null || \
     echo "NOTE: JAX CUDA install requires manual config. Check dmipy pyproject.toml."
 echo ""
 
-# ── 6. Verify GPU access from Python ───────────────────────────────
+# ── 7. Verify GPU access from Python ───────────────────────────────
 echo ">>> Verifying JAX GPU access..."
 cd "$HOME/dmipy"
 uv run python -c "
@@ -103,7 +112,7 @@ else:
 " || echo "WARNING: JAX GPU verification failed."
 echo ""
 
-# ── 7. Set up secrets ──────────────────────────────────────────────
+# ── 8. Set up secrets ──────────────────────────────────────────────
 echo "============================================"
 echo " Setup complete!"
 echo "============================================"
