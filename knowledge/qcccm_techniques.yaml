@@ -46,13 +46,14 @@
 - name: "Frustrated topology targeting"
   category: model
   description: >
-    Focus on graph topologies with high frustration index (many frustrated
-    triangles). Quantum methods have the largest advantage on frustrated systems
-    where classical MC gets trapped.
+    Focus on graph topologies with high frustration index. Quantum methods have
+    the largest advantage on frustrated systems where classical MC gets trapped.
+    Valid topologies for ea_couplings: 'square', 'chain', 'complete'.
+    For SK (complete graph), frustration comes from random couplings.
   applicable_when: "Quantum advantage is near zero on simple topologies"
   code_pattern: |
-    # EA bimodal on triangular/kagome lattice, or SK with high N
-    adj, J = ea_couplings(N, topology='triangular', disorder='bimodal', seed=seed)
+    # EA bimodal on square lattice for geometric frustration
+    adj, J = ea_couplings(N, topology='square', disorder='bimodal', seed=seed)
     fi = frustration_index(adj, J)  # target fi > 0.3
   tags: [frustration, topology, quantum-advantage]
 
@@ -147,11 +148,62 @@
 - name: "Topology comparison grid"
   category: model
   description: >
-    Compare quantum advantage across topologies (complete, square, chain, ring,
-    star, random ER, scale-free) at matched N and disorder strength. Different
-    connectivity creates different frustration landscapes.
+    Compare quantum advantage across the three valid topologies (complete,
+    square, chain) at matched N and disorder strength. Different connectivity
+    creates different frustration landscapes. ONLY these three are valid.
   applicable_when: "Only one or two topologies explored; need systematic comparison"
   code_pattern: |
-    for topo in ['complete', 'square', 'chain', 'ring', 'star', 'random', 'scale-free']:
-        adj, J = ea_couplings(N, topology=topo, ...)
+    for topo in ['complete', 'square', 'chain']:
+        adj, J = ea_couplings(N, topology=topo, disorder='bimodal', seed=seed)
   tags: [topology, comparison, systematic]
+
+- name: "Reduced classical budget (handicap Metropolis)"
+  category: experimental-design
+  description: >
+    CRITICAL INSIGHT: At N=6-10 with 5000 MC steps, Metropolis ALWAYS finds the
+    ground state, so quantum advantage is zero by construction. To reveal quantum
+    advantage, reduce the classical MC budget (e.g., 100-500 steps) so Metropolis
+    gets stuck in metastable states while quantum methods can still find the ground
+    state. This tests whether quantum methods converge faster, not just better.
+  applicable_when: "quantum_advantage is always ~0 because Metropolis finds exact ground state"
+  code_pattern: |
+    # Handicap classical: fewer MC steps
+    c_result, c_time = run_classical(params, n_steps=200)
+    # Quantum gets same or more budget
+    q_result, q_time = run_pimc(params, n_trotter=16, n_steps=5000)
+    advantage = compute_quantum_advantage(c_result.energy, q_result.energy, E_exact)
+  tags: [classical-budget, convergence, experimental-design]
+
+- name: "Time-to-solution metric"
+  category: experimental-design
+  description: >
+    CRITICAL INSIGHT: Instead of comparing final energies (where both methods
+    converge to the same answer given enough time), measure how many steps each
+    method needs to first reach the ground state. Record energy vs step count
+    and find the step at which E_best first equals E_exact. Quantum advantage
+    then means faster convergence, not lower final energy.
+  applicable_when: "Both classical and quantum methods find the ground state — no energy-based advantage"
+  code_pattern: |
+    # Run with trajectory tracking, then find first step where E = E_exact
+    c_result, _ = run_classical(params, n_steps=5000)
+    # Check c_result.trajectory for convergence point
+    # Compare convergence step counts between methods
+  tags: [time-to-solution, convergence-speed, metric]
+
+- name: "Large N regime (N=14-20)"
+  category: model
+  description: >
+    CRITICAL INSIGHT: At N <= 10, the energy landscape is simple enough that
+    Metropolis always finds the ground state. Push to N=14-20 where the number
+    of metastable states grows exponentially and classical MC genuinely struggles.
+    VQE/QAOA scale poorly beyond N=12, so PIMC is the primary quantum method
+    at large N. Use exact_ground_state() (brute force, feasible up to N=20)
+    for ground truth.
+  applicable_when: "All small-N experiments show zero quantum advantage"
+  code_pattern: |
+    for N in [14, 16, 18, 20]:
+        adj, J = sk_couplings(N, seed=seed)
+        # Brute force still works up to N=20
+        E_exact, _ = exact_ground_state(params)
+        # PIMC vs Metropolis at this size
+  tags: [large-N, scaling, spin-glass]
