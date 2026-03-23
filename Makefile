@@ -51,7 +51,7 @@ BUDGET      ?= 5.0
 GENERATIONS ?= 20
 ADAPTER     ?= dmipy
 PROJECT     ?= ~/dmipy
-IMAGE       ?= runpod/pytorch:2.4.0-py3.12-cuda12.4.1-devel-ubuntu22.04
+IMAGE       ?= runpod/pytorch:1.0.3-cu1300-torch260-ubuntu2404
 SETUP_URL   := https://raw.githubusercontent.com/m9h/agentsciml/main/scripts/setup_runpod.sh
 
 gpu-gpus:
