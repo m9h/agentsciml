@@ -1,6 +1,6 @@
 .PHONY: test test-unit test-integration test-cov lint fmt clean
 .PHONY: gpu-up gpu-down gpu-delete gpu-status gpu-ssh gpu-run gpu-gpus gpu-setup
-.PHONY: dgx-setup dgx-run dgx-ssh dgx-build run
+.PHONY: dgx-setup dgx-run dgx-ssh dgx-build dgx-status dgx-logs dgx-cancel run
 
 # ── Local development ─────────────────────────────────────────────
 
@@ -193,16 +193,25 @@ dgx-build:
 		docker build --build-arg JAX_TAG=$(JAX_TAG) -t $(CONTAINER) .'
 
 dgx-run:
-	@echo "Running evolutionary loop on DGX Spark (container)..."
+	@echo "Submitting Slurm job on DGX Spark..."
+	@scp -i "$(DGX_KEY)" scripts/slurm_run.sh $(DGX_USER)@$(DGX_HOST):$(DGX_DIR)/agentsciml/scripts/slurm_run.sh
 	@$(DGX_SSH) '\
-		docker run --rm --gpus all \
-			--ipc=host --ulimit memlock=-1 --ulimit stack=67108864 \
-			-e ANTHROPIC_API_KEY=$(ANTHROPIC_API_KEY) \
-			$(CONTAINER) \
-			--project /workspace/dmipy \
-			--adapter $(ADAPTER) \
-			--budget $(BUDGET) \
-			--generations $(GENERATIONS)'
+		cd $(DGX_DIR)/agentsciml && \
+		ANTHROPIC_API_KEY=$(ANTHROPIC_API_KEY) \
+		CONTAINER=$(CONTAINER) \
+		BUDGET=$(BUDGET) \
+		GENERATIONS=$(GENERATIONS) \
+		ADAPTER=$(ADAPTER) \
+		sbatch scripts/slurm_run.sh'
+
+dgx-status:
+	@$(DGX_SSH) 'squeue -u $(DGX_USER) -o "%.10i %.12j %.8T %.10M %.6D %R"'
+
+dgx-logs:
+	@$(DGX_SSH) 'ls -t $(DGX_DIR)/agentsciml/agentsciml_*.log 2>/dev/null | head -1 | xargs tail -50 2>/dev/null || echo "No logs found"'
+
+dgx-cancel:
+	@$(DGX_SSH) 'scancel -u $(DGX_USER) -n agentsciml'
 
 # ── Local run (on this machine, if it has a GPU) ───────────────
 

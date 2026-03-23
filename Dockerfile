@@ -6,8 +6,9 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 
 WORKDIR /workspace
 
-# Clone and install agentsciml
-RUN git clone https://github.com/m9h/agentsciml.git /workspace/agentsciml && \
+# Clone and install agentsciml (use COPY for local context, fall back to git)
+ARG AGENTSCIML_BRANCH=main
+RUN git clone -b ${AGENTSCIML_BRANCH} https://github.com/m9h/agentsciml.git /workspace/agentsciml && \
     cd /workspace/agentsciml && uv sync --dev --python 3.12
 
 # Clone and install dmipy
