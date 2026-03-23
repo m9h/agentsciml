@@ -15,7 +15,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_TIMEOUT = 600  # 10 minutes, matching prepare.py
+DEFAULT_TIMEOUT = 1800  # 30 minutes — flow architectures need longer training
 
 
 @dataclass

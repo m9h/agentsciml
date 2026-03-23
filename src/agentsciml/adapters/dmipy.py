@@ -89,6 +89,16 @@ ModelSimulator API (from build_simulator):
     sim.sample_and_simulate(key, n) -> (theta, noisy_signals)
     sim.snr_range = (10.0, 50.0)  # set for variable-SNR training
 
+Available from dmipy_jax.inference.trainer (FLOW-BASED NPE):
+    create_trainer          # (flow_key, theta_dim, signal_dim, simulator, prior_sampler,
+                            #  learning_rate, hidden_dim, num_layers, flow_type, knots)
+                            #  -> (flow, optimizer)
+                            #  flow_type: "affine" or "spline" (RQS)
+                            #  knots: int (default 8, for spline only)
+    train_loop              # (flow, optimizer, simulator, prior_sampler, key,
+                            #  num_steps, batch_size, noise_std, print_every)
+                            #  -> (trained_flow, losses)
+
 Available from dmipy_jax.inference.score_posterior:
     MLPScoreNet             # MLP score network (param_dim, signal_dim, hidden_dim, depth, cond_dim)
     VPSchedule              # VP-SDE noise schedule (beta_min, beta_max)
@@ -96,14 +106,14 @@ Available from dmipy_jax.inference.score_posterior:
     sample_posterior        # (key, net, signal, schedule, n_samples, n_steps, ...)
 
 Available from dmipy_jax.pipeline.train:
-    train_sbi               # MDN/Flow training pipeline
+    train_sbi               # MDN/Flow/Score training pipeline (uses SBIPipelineConfig)
 
 Experiment structure:
     - Define run_experiment() function
     - Call it in if __name__ == "__main__"
     - Each result must call print_result() AND log_result()
     - RESULT format: RESULT|model|dataset|arch|fiber_error_deg=val|d_stick_r=val|...
-    - 10-minute timeout per experiment
+    - 30-minute timeout per experiment
 """
 
     def get_metric_name(self) -> str:

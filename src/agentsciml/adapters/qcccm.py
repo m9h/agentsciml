@@ -84,7 +84,7 @@ Experiment structure:
     - Call it in if __name__ == "__main__"
     - Each result must call print_result() AND log_result()
     - Use SocialSpinGlassParams to configure models
-    - 10-minute timeout per experiment
+    - 30-minute timeout per experiment
 """
 
     def get_metric_name(self) -> str:

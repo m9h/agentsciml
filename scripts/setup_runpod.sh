@@ -13,6 +13,32 @@ echo " agentsciml + dmipy RunPod GPU Setup"
 echo "============================================"
 echo ""
 
+# ── 0. Extract API key from container env (RunPod SSH fix) ───────
+# RunPod container env vars are NOT available in SSH sessions.
+# Extract from the init process environment and persist to ~/.bashrc.
+if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ -f /proc/1/environ ]; then
+    export ANTHROPIC_API_KEY=$(cat /proc/1/environ | tr '\0' '\n' | grep '^ANTHROPIC_API_KEY=' | cut -d= -f2-)
+fi
+
+if [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+    # Persist to ~/.bashrc so future SSH sessions have it
+    if ! grep -q 'ANTHROPIC_API_KEY' ~/.bashrc 2>/dev/null; then
+        cat >> ~/.bashrc <<'BASHRC_EOF'
+
+# ── AgenticSciML: extract RunPod container env vars for SSH sessions ──
+if [ -z "${ANTHROPIC_API_KEY:-}" ] && [ -f /proc/1/environ ]; then
+    export ANTHROPIC_API_KEY=$(cat /proc/1/environ | tr '\0' '\n' | grep '^ANTHROPIC_API_KEY=' | cut -d= -f2-)
+fi
+BASHRC_EOF
+        echo ">>> ANTHROPIC_API_KEY extracted and persisted to ~/.bashrc"
+    else
+        echo ">>> ANTHROPIC_API_KEY already in ~/.bashrc"
+    fi
+else
+    echo ">>> WARNING: ANTHROPIC_API_KEY not found in environment or /proc/1/environ"
+fi
+echo ""
+
 # ── 1. GPU check ─────────────────────────────────────────────────
 echo ">>> Checking GPU..."
 nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader 2>/dev/null || echo "WARNING: nvidia-smi not found"
@@ -63,6 +89,16 @@ echo ">>> Setting up dmipy..."
 cd /workspace/dmipy
 uv sync --python 3.12
 echo "dmipy installed."
+echo ""
+
+# ── 5b. Fix cuDNN version for JAX 0.8.1 + jax-cuda13 ────────────
+# dmipy pulls in nvidia-cudnn-cu12 (9.10.2) which is too old.
+# JAX 0.8.1 with jax-cuda13 needs cuDNN >= 9.12.0.
+echo ">>> Fixing cuDNN version (cu12 -> cu13)..."
+cd /workspace/dmipy
+uv pip uninstall nvidia-cudnn-cu12 2>/dev/null || true
+uv pip install nvidia-cudnn-cu13==9.20.0.48 --reinstall
+echo "cuDNN fixed: nvidia-cudnn-cu13==9.20.0.48"
 echo ""
 
 # ── 6. Verify JAX GPU ────────────────────────────────────────────

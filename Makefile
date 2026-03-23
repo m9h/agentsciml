@@ -1,5 +1,6 @@
 .PHONY: test test-unit test-integration test-cov lint fmt clean
 .PHONY: gpu-up gpu-down gpu-delete gpu-status gpu-ssh gpu-run gpu-gpus gpu-setup
+.PHONY: dgx-setup dgx-run dgx-ssh dgx-build run
 
 # ── Local development ─────────────────────────────────────────────
 
@@ -154,6 +155,59 @@ gpu-run:
 	@echo "Running agentsciml evolutionary loop..."
 	source $$HOME/.local/bin/env 2>/dev/null || true; \
 	cd $$HOME/agentsciml && git pull --ff-only; \
+	uv run agentsciml run \
+		--project $(PROJECT) \
+		--adapter $(ADAPTER) \
+		--budget $(BUDGET) \
+		--generations $(GENERATIONS)
+
+# ── DGX Spark / container-based GPU ────────────────────────────
+#
+# Runs agentsciml in an NGC JAX container on the DGX Spark via SSH.
+#
+# First-time setup:
+#   1. make dgx-build                   (build container on DGX)
+#   2. make dgx-run ANTHROPIC_API_KEY=sk-ant-...
+#
+# Quick reference:
+#   make dgx-ssh                        # SSH into DGX
+#   make dgx-build                      # build/rebuild container
+#   make dgx-run                        # run evolutionary loop in container
+
+DGX_HOST    ?= gx10-dgx-spark.local
+DGX_USER    ?= mhough
+DGX_KEY     ?= /Users/mhough/Library/Application Support/NVIDIA/Sync/config/nvsync.key
+DGX_DIR     ?= ~/dev
+DGX_SSH     := ssh -o ConnectTimeout=10 -i "$(DGX_KEY)" $(DGX_USER)@$(DGX_HOST)
+JAX_TAG     ?= 26.02-py3
+CONTAINER   ?= agentsciml-dmipy
+
+dgx-ssh:
+	@$(DGX_SSH)
+
+dgx-build:
+	@echo "Syncing Dockerfile to DGX and building container..."
+	@scp -i "$(DGX_KEY)" Dockerfile $(DGX_USER)@$(DGX_HOST):$(DGX_DIR)/agentsciml/Dockerfile
+	@$(DGX_SSH) '\
+		cd $(DGX_DIR)/agentsciml && \
+		docker build --build-arg JAX_TAG=$(JAX_TAG) -t $(CONTAINER) .'
+
+dgx-run:
+	@echo "Running evolutionary loop on DGX Spark (container)..."
+	@$(DGX_SSH) '\
+		docker run --rm --gpus all \
+			--ipc=host --ulimit memlock=-1 --ulimit stack=67108864 \
+			-e ANTHROPIC_API_KEY=$(ANTHROPIC_API_KEY) \
+			$(CONTAINER) \
+			--project /workspace/dmipy \
+			--adapter $(ADAPTER) \
+			--budget $(BUDGET) \
+			--generations $(GENERATIONS)'
+
+# ── Local run (on this machine, if it has a GPU) ───────────────
+
+run:
+	@echo "Running agentsciml evolutionary loop locally..."
 	uv run agentsciml run \
 		--project $(PROJECT) \
 		--adapter $(ADAPTER) \
