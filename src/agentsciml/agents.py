@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from dataclasses import dataclass
 from typing import TypeVar
 
@@ -256,13 +257,27 @@ def call_agent(
 
     logger.info("Calling agent %s with model %s", role, model)
 
-    response = client.messages.create(
-        model=model,
-        max_tokens=config.max_tokens,
-        temperature=config.temperature,
-        system=config.system_prompt,
-        messages=[{"role": "user", "content": user_message}],
-    )
+    max_retries = 5
+    for attempt in range(max_retries):
+        try:
+            response = client.messages.create(
+                model=model,
+                max_tokens=config.max_tokens,
+                temperature=config.temperature,
+                system=config.system_prompt,
+                messages=[{"role": "user", "content": user_message}],
+            )
+            break
+        except (anthropic.APIStatusError,) as e:
+            if getattr(e, "status_code", 0) == 529 and attempt < max_retries - 1:
+                wait = 2 ** attempt * 5  # 5, 10, 20, 40, 80 seconds
+                logger.warning(
+                    "API overloaded (529), retrying in %ds (attempt %d/%d)",
+                    wait, attempt + 1, max_retries,
+                )
+                time.sleep(wait)
+            else:
+                raise
 
     # Track costs
     if cost_tracker and response.usage:

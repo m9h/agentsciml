@@ -117,7 +117,10 @@ class Orchestrator:
             for parent in parents:
                 if not self.cost.within_budget:
                     break
-                self._mutate_parent(parent, gen, context, api_surface)
+                try:
+                    self._mutate_parent(parent, gen, context, api_surface)
+                except Exception:
+                    logger.exception("Mutation failed for parent %s, continuing", parent.id)
 
         best = self.tree.best()
         logger.info("Done. Best score: %.6f", best.score if best else float("-inf"))
