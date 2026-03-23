@@ -44,6 +44,18 @@ class ProjectAdapter(ABC):
     def parse_score(self, result_lines: list[str]) -> float:
         """Extract primary metric score from RESULT| lines."""
 
+    def get_score_direction(self) -> str:
+        """Return 'maximize' or 'minimize' for the primary metric."""
+        return "maximize"
+
+    def get_constraints(self) -> str:
+        """Return constraint descriptions for the Critic agent.
+
+        Override to inject domain-specific hard constraints (artifact size,
+        wall-clock limits, parameter bounds) into the debate pipeline.
+        """
+        return ""
+
     @property
     def experiment_path(self) -> Path:
         """Path to the mutable experiment file."""

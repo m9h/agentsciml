@@ -21,10 +21,17 @@ class SolutionTree:
 
     MAX_CHILDREN = 10
 
-    def __init__(self, path: Path | None = None) -> None:
+    def __init__(
+        self,
+        path: Path | None = None,
+        direction: str = "maximize",
+    ) -> None:
+        if direction not in ("maximize", "minimize"):
+            raise ValueError(f"direction must be 'maximize' or 'minimize', got {direction!r}")
         self._nodes: dict[str, SolutionRecord] = {}
         self._children: dict[str, list[str]] = {}  # parent_id -> child ids
         self._path = path
+        self._direction = direction
         if path and path.exists():
             self._load(path)
 
@@ -73,12 +80,23 @@ class SolutionTree:
         self._save()
         return node
 
+    @property
+    def direction(self) -> str:
+        return self._direction
+
+    def _is_better(self, a: float, b: float) -> bool:
+        """Return True if score *a* is better than score *b*."""
+        if self._direction == "maximize":
+            return a > b
+        return a < b
+
     def best(self) -> SolutionRecord | None:
-        """Return the node with the highest score (best = max for quantum_advantage)."""
+        """Return the node with the best score according to direction."""
         ok_nodes = [n for n in self._nodes.values() if n.status == "ok"]
         if not ok_nodes:
             return None
-        return max(ok_nodes, key=lambda n: n.score)
+        fn = max if self._direction == "maximize" else min
+        return fn(ok_nodes, key=lambda n: n.score)
 
     def children_of(self, node_id: str) -> list[SolutionRecord]:
         """Return all children of a node."""
@@ -109,7 +127,8 @@ class SolutionTree:
             return []
 
         # Exploitation: always include the best
-        best = max(eligible, key=lambda n: n.score)
+        fn = max if self._direction == "maximize" else min
+        best = fn(eligible, key=lambda n: n.score)
         parents = [best]
         remaining = [n for n in eligible if n.id != best.id]
 
@@ -123,7 +142,7 @@ class SolutionTree:
     def top_k(self, k: int = 5) -> list[SolutionRecord]:
         """Return top-k scoring nodes for selector ensemble context."""
         ok_nodes = [n for n in self._nodes.values() if n.status == "ok"]
-        ok_nodes.sort(key=lambda n: n.score, reverse=True)
+        ok_nodes.sort(key=lambda n: n.score, reverse=(self._direction == "maximize"))
         return ok_nodes[:k]
 
     def summary(self) -> dict[str, Any]:

@@ -1,0 +1,255 @@
+# Parameter Golf technique knowledge base
+# Curated from leaderboard submissions, nanogpt speedrun community,
+# and compression/quantization literature.
+# Categories: architecture, quantization, optimizer, tokenizer, training, compression
+
+- name: "Grouped Query Attention (GQA)"
+  category: architecture
+  description: >
+    Share key/value heads across multiple query heads. Reduces KV parameter
+    count without proportional quality loss. The baseline uses 8 query heads
+    with 4 KV heads. More aggressive ratios (8:2, 8:1) save parameters but
+    may hurt quality on long-range dependencies.
+  applicable_when: "Model size is near the 16MB limit and attention parameters dominate"
+  code_pattern: |
+    # In model config
+    n_head = 8
+    n_kv_head = 2  # 4:1 ratio, halves KV parameters vs n_kv_head=4
+  tags: [architecture, attention, parameter-efficiency]
+
+- name: "Depth recurrence (layer sharing)"
+  category: architecture
+  description: >
+    Reuse the same transformer block parameters across multiple depth
+    positions. A 4-layer model applied 3 times acts as 12 effective layers
+    but uses only 4 layers worth of parameters. Requires careful learning
+    rate tuning as gradients flow through the same weights multiple times.
+  applicable_when: "Need more effective depth without increasing parameter count"
+  code_pattern: |
+    # Apply the same block multiple times
+    n_physical_layers = 4
+    n_recurrence = 3  # 12 effective layers
+    for _ in range(n_recurrence):
+        for layer in layers[:n_physical_layers]:
+            x = layer(x)
+  tags: [architecture, depth, parameter-sharing]
+
+- name: "Aggressive embedding tying"
+  category: architecture
+  description: >
+    Tie input and output embedding matrices (standard), but also consider
+    tying layer norms, positional encodings, or MLP parameters across
+    layers. Each tying reduces unique parameters at potential quality cost.
+  applicable_when: "Embeddings are a large fraction of total parameters"
+  code_pattern: |
+    # Input/output tying (baseline already does this)
+    lm_head.weight = embed.weight
+    # Additional: share layer norms across layers
+  tags: [architecture, tying, parameter-efficiency]
+
+- name: "INT5/INT6 mixed quantization"
+  category: quantization
+  description: >
+    Quantize different weight matrices at different precisions based on
+    sensitivity analysis. Attention weights and embedding tables may
+    tolerate INT5, while MLP weights need INT6 or INT8. Must implement
+    custom quantization with correct roundtrip validation.
+  applicable_when: "INT8 quantization leaves the artifact well under 16MB; trading size headroom for more parameters"
+  code_pattern: |
+    # Per-layer quantization config
+    quant_config = {
+        'embed': 'int8',      # sensitive to quantization
+        'attn': 'int5',       # tolerant
+        'mlp': 'int6',        # moderate sensitivity
+    }
+  tags: [quantization, mixed-precision, compression]
+
+- name: "Quantization-aware training (QAT)"
+  category: quantization
+  description: >
+    Simulate quantization noise during training so the model learns to
+    be robust to low-precision weights. Use straight-through estimator
+    for gradients through the quantization step. Critical when using
+    INT5 or lower precision.
+  applicable_when: "Post-training quantization degrades BPB significantly"
+  code_pattern: |
+    # Fake quantize during forward pass
+    def fake_quantize(w, bits=6):
+        scale = w.abs().max() / (2**(bits-1) - 1)
+        return (w / scale).round() * scale  # STE: gradient flows through round()
+  tags: [quantization, training, QAT]
+
+- name: "BigramHash tokenizer"
+  category: tokenizer
+  description: >
+    Hash-based tokenizer using character bigrams. BigramHash(10240) maps
+    pairs of characters to a 10240-entry vocabulary via hashing. Larger
+    vocabulary means more embedding parameters but fewer tokens per
+    document (better bytes_per_token ratio in BPB formula). Current SOTA
+    uses BigramHash(10240).
+  applicable_when: "Default sp1024 vocabulary is too small; want better bytes_per_token without SentencePiece training"
+  code_pattern: |
+    # BigramHash tokenizer with configurable vocab size
+    vocab_size = 10240
+    def tokenize(text):
+        tokens = []
+        for i in range(0, len(text) - 1, 2):
+            bigram = text[i:i+2]
+            tokens.append(hash(bigram) % vocab_size)
+        return tokens
+  tags: [tokenizer, bigram, hashing]
+
+- name: "Larger SentencePiece vocabulary"
+  category: tokenizer
+  description: >
+    Increase SentencePiece vocabulary from 1024 to 4096. More tokens means
+    larger embedding table but fewer tokens per document. The BPB formula
+    divides by bytes_per_token, so higher compression ratio improves the
+    metric directly. Trade-off: embedding parameters grow linearly with
+    vocab size.
+  applicable_when: "Embedding parameters are a small fraction of total; bytes_per_token is low with sp1024"
+  code_pattern: |
+    # Switch tokenizer variant
+    tokenizer_name = "sp4096"  # vs "sp1024" baseline
+  tags: [tokenizer, sentencepiece, vocabulary]
+
+- name: "Muon optimizer for weight matrices"
+  category: optimizer
+  description: >
+    Muon uses orthogonal gradient updates for weight matrices, providing
+    better conditioning than Adam. The baseline already uses Muon for
+    weight matrices and Adam for embeddings/scalars. Key hyperparameters:
+    momentum, learning rate, and the transition point between Muon and Adam.
+  applicable_when: "Training loss plateaus or oscillates with pure Adam"
+  code_pattern: |
+    # Separate optimizer groups
+    muon_params = [p for n, p in model.named_parameters() if p.ndim == 2]
+    adam_params = [p for n, p in model.named_parameters() if p.ndim != 2]
+  tags: [optimizer, muon, conditioning]
+
+- name: "Stochastic Weight Averaging (SWA)"
+  category: training
+  description: >
+    Average model weights over the final portion of training. SWA finds
+    wider optima that generalize better. The current SOTA uses SWA with
+    coefficient 0.4. Can be combined with cyclical learning rates for
+    better weight diversity.
+  applicable_when: "Validation BPB is close to training BPB; model is in a narrow optimum"
+  code_pattern: |
+    # SWA in final 40% of training
+    swa_coeff = 0.4
+    swa_start = int(total_steps * (1 - swa_coeff))
+    if step >= swa_start:
+        for p_swa, p in zip(swa_model.parameters(), model.parameters()):
+            p_swa.data = (p_swa.data * n_avg + p.data) / (n_avg + 1)
+            n_avg += 1
+  tags: [training, SWA, generalization]
+
+- name: "Cosine learning rate with warmup"
+  category: training
+  description: >
+    Warmup for the first 5-10% of steps, then cosine decay to near zero.
+    Standard for transformer training. Key decision: final learning rate
+    (zero vs small constant) and warmup fraction.
+  applicable_when: "Default schedule; consider tuning warmup fraction and minimum LR"
+  code_pattern: |
+    warmup_steps = int(total_steps * 0.05)
+    if step < warmup_steps:
+        lr = max_lr * step / warmup_steps
+    else:
+        lr = max_lr * 0.5 * (1 + cos(pi * (step - warmup_steps) / (total_steps - warmup_steps)))
+  tags: [training, learning-rate, schedule]
+
+- name: "Gradient accumulation for effective batch size"
+  category: training
+  description: >
+    Accumulate gradients over multiple micro-batches to simulate larger
+    batch sizes without increasing memory. Larger effective batches can
+    improve training stability and final BPB, especially with aggressive
+    learning rates.
+  applicable_when: "Per-GPU batch size is memory-limited; want larger effective batch"
+  code_pattern: |
+    accum_steps = 4
+    for micro_step in range(accum_steps):
+        loss = model(batch[micro_step]) / accum_steps
+        loss.backward()
+    optimizer.step()
+  tags: [training, batch-size, memory]
+
+- name: "Structured sparsity"
+  category: compression
+  description: >
+    Prune weights in structured patterns (e.g., entire attention heads,
+    FFN neurons, or 2:4 sparsity). Structured sparsity compresses better
+    with zlib than unstructured because of predictable zero patterns.
+    Must be applied during training (not post-hoc) for quality preservation.
+  applicable_when: "Model is near 16MB limit; some components contribute little to quality"
+  code_pattern: |
+    # 2:4 structured sparsity: keep 2 largest of every 4 elements
+    def apply_2_4_sparsity(w):
+        w_reshaped = w.reshape(-1, 4)
+        mask = torch.zeros_like(w_reshaped)
+        topk = w_reshaped.abs().topk(2, dim=1).indices
+        mask.scatter_(1, topk, 1)
+        return w * mask.reshape(w.shape)
+  tags: [compression, sparsity, structured]
+
+- name: "Low-rank factorization"
+  category: architecture
+  description: >
+    Replace large weight matrices W (d x d) with two smaller matrices
+    A (d x r) @ B (r x d) where r << d. Reduces parameters from d^2 to
+    2*d*r. Effective for MLP layers where the effective rank is often
+    much lower than the full dimension.
+  applicable_when: "MLP layers dominate parameter count; want to trade depth for width"
+  code_pattern: |
+    # Low-rank MLP layer
+    rank = dim // 4
+    mlp_down = nn.Linear(dim, rank, bias=False)
+    mlp_up = nn.Linear(rank, dim, bias=False)
+  tags: [architecture, low-rank, factorization]
+
+- name: "torch.compile with custom kernels"
+  category: training
+  description: >
+    Use torch.compile to fuse operations and generate optimized CUDA
+    kernels. Particularly effective for attention and loss computation.
+    Can save 10-20% training time, which allows more optimization steps
+    within the 10-minute budget.
+  applicable_when: "Training is wall-clock limited; want more steps in 10 minutes"
+  code_pattern: |
+    model = torch.compile(model)
+    # Or compile specific components
+    loss_fn = torch.compile(loss_fn)
+  tags: [training, performance, compilation]
+
+- name: "Test-time training on evaluated tokens"
+  category: training
+  description: >
+    During evaluation, update model weights on tokens already scored
+    (causal — only past tokens). This adapts the model to the validation
+    distribution at inference time. Allowed by competition rules as long
+    as only already-evaluated tokens are used.
+  applicable_when: "Want to squeeze extra BPB improvement at evaluation time; model has capacity to adapt"
+  code_pattern: |
+    # During evaluation, after computing loss on a chunk
+    if test_time_training:
+        loss.backward()
+        ttt_optimizer.step()
+        ttt_optimizer.zero_grad()
+  tags: [training, test-time, adaptation]
+
+- name: "Wider shallow network"
+  category: architecture
+  description: >
+    For fixed parameter budget, wider+shallower can outperform narrow+deep.
+    A 6-layer model with dim=768 uses similar parameters to a 9-layer
+    model with dim=512 but may learn better representations per layer.
+    Interact with depth recurrence for best of both.
+  applicable_when: "Current architecture may not be at the optimal depth-width trade-off"
+  code_pattern: |
+    # Compare configurations at similar parameter count:
+    # Option A: 9 layers, dim=512 (baseline)
+    # Option B: 6 layers, dim=768
+    # Option C: 4 layers, dim=768, recurrence=2 (8 effective)
+  tags: [architecture, width, depth-tradeoff]

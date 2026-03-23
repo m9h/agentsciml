@@ -58,7 +58,10 @@ class Orchestrator:
 
         # Solution tree
         tree_path = tree_path or (adapter.project_root / "autoresearch" / "tree.json")
-        self.tree = SolutionTree(path=tree_path)
+        self.tree = SolutionTree(
+            path=tree_path,
+            direction=adapter.get_score_direction(),
+        )
 
         # Knowledge base — auto-detect from adapter type if not specified
         kf = knowledge_file
@@ -66,6 +69,10 @@ class Orchestrator:
             adapter_name = type(adapter).__name__.lower()
             if "dmipy" in adapter_name:
                 kf = DEFAULT_KNOWLEDGE_DIR / "dmipy_techniques.yaml"
+            elif "golf" in adapter_name or "parametergolf" in adapter_name:
+                kf = DEFAULT_KNOWLEDGE_DIR / "parameter_golf_techniques.yaml"
+            elif "neurosim" in adapter_name or "bl1" in adapter_name:
+                kf = DEFAULT_KNOWLEDGE_DIR / "neurosim_techniques.yaml"
             else:
                 kf = DEFAULT_KNOWLEDGE_DIR / "qcccm_techniques.yaml"
         self.techniques: list[TechniqueCard] = []
@@ -209,11 +216,13 @@ class Orchestrator:
                 logger.debug("Retriever returned no valid selection")
 
         # Step 3: Structured debate — Proposer + Critic
+        constraints = self.adapter.get_constraints()
         proposal = self._run_debate(
             analysis=analysis,
             technique_text=technique_text,
             parent_code=parent.code,
             context=context,
+            constraints=constraints,
         )
 
         # Step 4: Engineer — implement the proposal
@@ -248,6 +257,7 @@ class Orchestrator:
         technique_text: str,
         parent_code: str,
         context: str,
+        constraints: str = "",
     ) -> MutationProposal:
         """Run N-round structured debate between Proposer and Critic."""
         debate_history = ""
@@ -286,6 +296,8 @@ class Orchestrator:
             }
             if technique_text:
                 proposer_docs["technique"] = technique_text
+            if constraints:
+                proposer_docs["constraints"] = constraints
 
             proposer_response = call_agent(
                 "proposer", proposer_docs, client=self.client, cost_tracker=self.cost
@@ -302,6 +314,8 @@ class Orchestrator:
                         " Challenge the proposer's reasoning."
                     ),
                 }
+                if constraints:
+                    critic_docs["constraints"] = constraints
                 critic_response = call_agent(
                     "critic", critic_docs, client=self.client, cost_tracker=self.cost
                 )
