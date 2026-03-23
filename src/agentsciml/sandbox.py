@@ -59,7 +59,7 @@ def run_experiment(
         # Clear VIRTUAL_ENV so uv uses the target project's venv, not ours
         env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
         proc = subprocess.run(
-            ["uv", "run", "python", str(exp_path)],
+            ["uv", "run", "--no-sync", "python", str(exp_path)],
             cwd=str(project_root),
             capture_output=True,
             text=True,
