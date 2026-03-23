@@ -170,8 +170,12 @@ class Orchestrator:
     ) -> SolutionRecord | None:
         """Run the full agent pipeline to mutate a parent into a child."""
 
-        # Step 1: DataAnalyst — analyze results history
+        # Step 1: DataAnalyst — analyze results history (truncated to last 100 lines)
         results_history = self.adapter.get_results_history()
+        lines = results_history.split("\n")
+        if len(lines) > 101:  # header + 100 data lines
+            results_history = "\n".join(lines[:1] + lines[-100:])
+            results_history = f"[truncated to last 100 of {len(lines)-1} rows]\n" + results_history
         analysis_text = call_agent(
             "data_analyst",
             {"results_history": results_history, "metric_name": self.adapter.get_metric_name()},
@@ -375,6 +379,22 @@ class Orchestrator:
         score = 0.0
         if exec_result.status == "ok":
             score = self.adapter.parse_score(exec_result.result_lines)
+            # Sanity check: quantum_advantage > 1.0 is physically suspicious
+            if abs(score) > 1.0:
+                logger.warning(
+                    "Suspicious score %.4f (|score| > 1.0) — likely a bug in generated code. "
+                    "Clamping to 0.0.",
+                    score,
+                )
+                score = 0.0
+                exec_result = exec_result.__class__(
+                    stdout=exec_result.stdout,
+                    stderr=exec_result.stderr,
+                    returncode=exec_result.returncode,
+                    wall_time=exec_result.wall_time,
+                    result_lines=exec_result.result_lines,
+                    status="suspicious",
+                )
 
         agent_reports = {
             "stdout_preview": exec_result.stdout[:1000],
