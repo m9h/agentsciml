@@ -3,7 +3,7 @@
 
 projects:
   - name: "qcccm"
-    path: "/home/mhough/dev/quantum-cognition"
+    path: "~/dev/quantum-cognition"
     repo_url: "https://github.com/m9h/quantum-cognition.git"
     priority: "high"
     slurm:
@@ -14,7 +14,7 @@ projects:
       time: "00:30:00"
 
   - name: "jaxctrl"
-    path: "/home/mhough/dev/jaxctrl"
+    path: "~/dev/jaxctrl"
     repo_url: "https://github.com/m9h/jaxctrl.git"
     priority: "high"
     slurm:
@@ -25,7 +25,7 @@ projects:
       time: "00:30:00"
 
   - name: "evo-embodied"
-    path: "/home/mhough/dev/evo-embodied"
+    path: "~/dev/evo-embodied"
     repo_url: "https://github.com/m9h/evo-embodied.git"
     priority: "high"
     slurm:
@@ -36,7 +36,7 @@ projects:
       time: "02:00:00"
 
   - name: "alf"
-    path: "/home/mhough/dev/alf"
+    path: "~/dev/alf"
     repo_url: "https://github.com/m9h/alf.git"
     priority: "medium"
     slurm:
@@ -47,7 +47,7 @@ projects:
       time: "00:45:00"
 
   - name: "organoid-benchmarks"
-    path: "/home/mhough/dev/organoid-hgx-benchmark"
+    path: "~/dev/organoid-hgx-benchmark"
     repo_url: "https://github.com/m9h/organoid-hgx-benchmark.git"
     priority: "medium"
     slurm:
@@ -58,7 +58,7 @@ projects:
       time: "01:00:00"
 
   - name: "bl1"
-    path: "/home/mhough/dev/neurosim"
+    path: "~/dev/neurosim"
     repo_url: "https://github.com/m9h/bl1.git"
     priority: "high"
     slurm:

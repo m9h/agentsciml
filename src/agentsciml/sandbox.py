@@ -102,15 +102,10 @@ def run_slurm_remote(entry_point: str, project_root: Path, config: dict, timeout
     """Run via remote Slurm on DGX Spark via SSH."""
     t0 = time.time()
     
-    # DGX Spark SSH details (from Makefile)
-    dgx_host = "gx10-dgx-spark.local"
-    dgx_user = "mhough"
-    dgx_key = "/Users/mhough/Library/Application Support/NVIDIA/Sync/config/nvsync.key"
-    
-    # Check if the key exists locally (might be different path on Linux vs MacOS)
-    if not os.path.exists(dgx_key):
-        # Fallback for Linux environment
-        dgx_key = os.path.expanduser("~/.ssh/id_ed25519")
+    # DGX Spark SSH details — configurable via slurm_config or env vars
+    dgx_host = config.get("ssh_host", os.environ.get("DGX_HOST", "gx10-dgx-spark.local"))
+    dgx_user = config.get("ssh_user", os.environ.get("DGX_USER", os.environ.get("USER", "root")))
+    dgx_key = config.get("ssh_key", os.environ.get("DGX_KEY", os.path.expanduser("~/.ssh/id_ed25519")))
         
     ssh_prefix = ["ssh", "-o", "ConnectTimeout=10", "-i", dgx_key, f"{dgx_user}@{dgx_host}"]
     

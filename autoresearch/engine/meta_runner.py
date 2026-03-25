@@ -17,8 +17,8 @@ def run_meta_experiment(yaml_path: str):
 
     meta_config = config_data.get("config", {})
     
-    # Target project
-    qcccm_root = Path.home() / "dev" / "quantum-cognition"
+    # Target project (configurable via YAML or default)
+    qcccm_root = Path(config_data.get("target_project", str(Path.home() / "dev" / "quantum-cognition")))
     adapter = Orchestrator.load_adapter(str(qcccm_root / "adapter.py"))
     adapter.project_root = qcccm_root
 

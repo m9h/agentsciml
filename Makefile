@@ -175,8 +175,8 @@ gpu-run:
 #   make dgx-run                        # run evolutionary loop in container
 
 DGX_HOST    ?= gx10-dgx-spark.local
-DGX_USER    ?= mhough
-DGX_KEY     ?= /Users/mhough/Library/Application Support/NVIDIA/Sync/config/nvsync.key
+DGX_USER    ?= $(USER)
+DGX_KEY     ?= $(HOME)/.ssh/id_ed25519
 DGX_DIR     ?= ~/dev
 DGX_SSH     := ssh -o ConnectTimeout=10 -i "$(DGX_KEY)" $(DGX_USER)@$(DGX_HOST)
 JAX_TAG     ?= 26.02-py3
