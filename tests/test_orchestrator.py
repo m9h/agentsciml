@@ -12,9 +12,10 @@ from unittest.mock import patch
 
 import pytest
 
+from agentsciml.adapters.base import ProjectAdapter
 from agentsciml.adapters.qcccm import QCCCMAdapter
 from agentsciml.orchestrator import (
-    N_DEBATE_ROUNDS,
+    DEFAULT_DEBATE_ROUNDS,
     Orchestrator,
 )
 from agentsciml.protocols import AnalysisReport, MutationProposal
@@ -299,7 +300,7 @@ class TestDebateProtocol:
     def test_debate_round_count(
         self, mock_anthropic_cls, mock_call_agent, tmp_project
     ):
-        """Verify N_DEBATE_ROUNDS of proposer calls + (N-1) critic calls."""
+        """Verify debate_rounds of proposer calls + (N-1) critic calls."""
         call_log = []
 
         def mock_agent_side_effect(role, docs, **kwargs):
@@ -330,7 +331,91 @@ class TestDebateProtocol:
 
         proposer_calls = [r for r in call_log if r == "proposer"]
         critic_calls = [r for r in call_log if r == "critic"]
-        assert len(proposer_calls) == N_DEBATE_ROUNDS
-        assert len(critic_calls) == N_DEBATE_ROUNDS - 1  # no critic on final round
+        assert len(proposer_calls) == orch.debate_rounds
+        assert len(critic_calls) == orch.debate_rounds - 1  # no critic on final round
 
         assert isinstance(proposal, MutationProposal)
+
+    @pytest.mark.integration
+    @patch("agentsciml.orchestrator.call_agent")
+    @patch("agentsciml.orchestrator.anthropic.Anthropic")
+    def test_custom_debate_rounds(
+        self, mock_anthropic_cls, mock_call_agent, tmp_project
+    ):
+        """Verify custom debate_rounds are respected."""
+        call_log = []
+
+        def mock_agent_side_effect(role, docs, **kwargs):
+            call_log.append(role)
+            if role == "proposer":
+                return _make_proposal_json()
+            elif role == "critic":
+                return (
+                    '{"flaws": [], "suggestions": [],'
+                    ' "feasibility": "feasible", "revised_strategy": ""}'
+                )
+            return "{}"
+
+        mock_call_agent.side_effect = mock_agent_side_effect
+
+        adapter = QCCCMAdapter(tmp_project)
+        orch = Orchestrator(adapter, budget_usd=10.0, debate_rounds=6)
+        assert orch.debate_rounds == 6
+
+        analysis = AnalysisReport(
+            summary="test", best_score=0.05, best_config="SK N=10"
+        )
+        orch._run_debate(
+            analysis=analysis,
+            technique_text="",
+            parent_code="print('test')",
+            context="test context",
+        )
+
+        proposer_calls = [r for r in call_log if r == "proposer"]
+        critic_calls = [r for r in call_log if r == "critic"]
+        assert len(proposer_calls) == 6
+        assert len(critic_calls) == 5
+
+
+# ---------------------------------------------------------------------------
+# load_adapter tests
+# ---------------------------------------------------------------------------
+
+class TestLoadAdapter:
+
+    @pytest.mark.unit
+    def test_load_valid_adapter(self, tmp_path):
+        """load_adapter discovers and instantiates a ProjectAdapter subclass."""
+        adapter_file = tmp_path / "my_adapter.py"
+        adapter_file.write_text(
+            "from pathlib import Path\n"
+            "from agentsciml.adapters.base import ProjectAdapter\n"
+            "\n"
+            "class TestAdapter(ProjectAdapter):\n"
+            "    def __init__(self):\n"
+            "        super().__init__(Path('/tmp'))\n"
+            "    def get_context(self): return 'test'\n"
+            "    def get_results_history(self): return ''\n"
+            "    def get_current_experiment(self): return ''\n"
+            "    def get_available_api(self): return ''\n"
+            "    def get_metric_name(self): return 'x'\n"
+            "    def get_result_metric_key(self): return 'x'\n"
+            "    def parse_score(self, result_lines): return 0.0\n"
+        )
+        adapter = Orchestrator.load_adapter(str(adapter_file))
+        assert isinstance(adapter, ProjectAdapter)
+        assert adapter.get_context() == "test"
+
+    @pytest.mark.unit
+    def test_load_nonexistent_file_raises(self):
+        with pytest.raises((ImportError, FileNotFoundError)):
+            Orchestrator.load_adapter("/nonexistent/path/adapter.py")
+
+    @pytest.mark.unit
+    def test_load_file_without_adapter_raises(self, tmp_path):
+        """A module with no ProjectAdapter subclass raises AttributeError."""
+        no_adapter = tmp_path / "empty.py"
+        no_adapter.write_text("x = 42\n")
+        with pytest.raises(AttributeError, match="No ProjectAdapter subclass"):
+            Orchestrator.load_adapter(str(no_adapter))
