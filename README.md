@@ -39,11 +39,11 @@ Instead of a human manually tuning parameters and architectures, AgenticSciML ru
  ┌─ 1. DataAnalyst ──── Analyze result history, find patterns ─────────── Haiku ─┐
  │  2. Retriever ─────── Select technique from knowledge base ─────────── Haiku  │
  │  3. Proposer ──┐                                                              │
- │     Critic ────┤──── 4-round structured debate ─────────── Sonnet + Haiku     │
+ │     Critic ────┤──── N-round structured debate (default 4) ── Sonnet + Haiku  │
  │     Proposer ──┤      (reason → challenge → synthesize → finalize)            │
  │     Critic ────┘                                                              │
  │  4. Engineer ──────── Write complete experiment.py ─────────────── Sonnet     │
- │  5. Sandbox ───────── Execute in subprocess (30 min timeout) ──── local/GPU   │
+ │  5. Sandbox ───────── Execute locally or via remote Slurm ──── local/GPU/HPC  │
  │  6. Debugger ──────── Fix crashes from stderr (up to 3 retries) ── Haiku     │
  └─ 7. Tree.add() ────── Record score, persist to tree.json ────────────────────┘
 ```
@@ -90,9 +90,10 @@ agentsciml status --project ~/dev/quantum-cognition
 src/agentsciml/
 ├── orchestrator.py     Evolutionary loop (init → root → tree expansion)
 ├── agents.py           8 agent roles with model-tier routing
+├── swarm.py            Multi-project parallel orchestration with GitHub sync
 ├── tree.py             Solution tree with exploitation/exploration parent selection
 ├── knowledge.py        YAML-based technique knowledge base
-├── sandbox.py          Subprocess execution with timeout and RESULT| parsing
+├── sandbox.py          Local subprocess or remote Slurm execution
 ├── cost.py             Token tracking and budget enforcement
 ├── protocols.py        9 Pydantic models for typed inter-agent document passing
 ├── cli.py              Click CLI (run, status)
@@ -100,7 +101,8 @@ src/agentsciml/
     ├── base.py         Abstract ProjectAdapter interface
     ├── qcccm.py        Quantum cognition (VQE, QAOA, spin glasses)
     ├── dmipy.py        Diffusion MRI microstructure
-    └── parameter_golf.py   GPT training (OpenAI parameter-golf)
+    ├── parameter_golf.py   GPT training (OpenAI parameter-golf)
+    └── meta.py         Meta-architecture optimization (parameter golf over orchestrator settings)
 ```
 
 ### Agent Roles
@@ -109,7 +111,7 @@ src/agentsciml/
 |-------|-------|---------|
 | DataAnalyst | Haiku | Summarize results history, identify patterns and unexplored regions |
 | Retriever | Haiku | Select 0–1 techniques from curated knowledge base |
-| Proposer | Sonnet | Creative reasoning via 4-round structured debate |
+| Proposer | Sonnet | Creative reasoning via N-round structured debate (configurable, default 4) |
 | Critic | Haiku | Challenge proposals, find flaws, assess feasibility |
 | Engineer | Sonnet | Write valid, complete experiment.py code |
 | Debugger | Haiku | Fix crashes using stderr, up to 3 retries |
@@ -122,6 +124,37 @@ src/agentsciml/
 - **Append-only tree** — all experiments persisted in `tree.json`, never deleted or modified
 - **RESULT| contract** — experiments emit structured `RESULT|key=val|...` lines for mechanical score parsing
 - **No framework** — the orchestrator is a plain Python loop; no LangChain, no LlamaIndex
+- **Dynamic adapter loading** — `Orchestrator.load_adapter(path)` discovers and instantiates any `ProjectAdapter` subclass from a file, enabling external projects to plug in without modifying the core package
+
+### Swarm Orchestration
+
+The swarm manager (`swarm.py`) runs multiple scientific projects in parallel, each with its own adapter, knowledge base, and Slurm configuration:
+
+```yaml
+# swarm.yaml
+projects:
+  - name: "qcccm"
+    path: "/home/user/dev/quantum-cognition"
+    repo_url: "https://github.com/m9h/quantum-cognition.git"
+    slurm:
+      partition: "gpu"
+      gres: "gpu:1"
+
+meta:
+  debate_rounds: 6
+  max_concurrent_slurm_jobs: 10
+```
+
+```bash
+# Launch all projects
+python -m agentsciml.swarm --config swarm.yaml
+```
+
+Each project is automatically synced from GitHub, its adapter loaded dynamically, and experiments dispatched to local subprocess or remote Slurm (DGX Spark via SSH).
+
+### Meta-Architecture Optimization
+
+The `MetaSciMLAdapter` treats the orchestrator's own settings (debate rounds, budget, model tier assignments) as the search space, running inner loops on a target project and optimizing for `efficiency = best_score / cost`. This enables automated tuning of the framework itself.
 
 ---
 
@@ -237,8 +270,9 @@ class MyProjectAdapter(ProjectAdapter):
 | Target | Command | Notes |
 |--------|---------|-------|
 | **Local** | `agentsciml run -p ~/project` | CPU or local GPU |
+| **Swarm** | `python -m agentsciml.swarm --config swarm.yaml` | Parallel multi-project |
 | **RunPod** | `make gpu-up && make gpu-run` | A100 cloud GPU |
-| **DGX Spark** | `sbatch scripts/slurm_run.sh` | HPC cluster |
+| **DGX Spark** | `sbatch scripts/slurm_run.sh` | HPC cluster via Slurm |
 | **Docker** | `docker build -t agentsciml .` | Containerized |
 
 ---
