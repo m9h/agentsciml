@@ -19,36 +19,25 @@ Based on [AgenticSciML](https://arxiv.org/abs/2511.07262) (Jiang & Karniadakis, 
 
 Instead of a human manually tuning parameters and architectures, AgenticSciML runs an evolutionary loop where each generation passes through a pipeline of 8 specialized agents:
 
-```
-                    ┌──────────────────────────────┐
-                    │         ORCHESTRATOR          │
-                    │    Evolutionary Loop Control   │
-                    └──────────────┬───────────────┘
-                                  │
-            ┌─────────────────────┼─────────────────────┐
-            ▼                     ▼                     ▼
-   ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-   │  SOLUTION TREE   │  │  COST TRACKER   │  │  KNOWLEDGE BASE │
-   │ Exploit / Explore│  │  Swarm Budget   │  │ YAML Techniques │
-   └─────────────────┘  └─────────────────┘  └─────────────────┘
+```mermaid
+graph TD
+    O[ORCHESTRATOR<br/>Evolutionary Loop Control]
+    O --> T[SOLUTION TREE<br/>Exploit / Explore]
+    O --> C[COST TRACKER<br/>Swarm Budget]
+    O --> K[KNOWLEDGE BASE<br/>YAML Techniques]
 ```
 
 ### Per-Mutation Agent Pipeline
 
-```
- ┌──────────────────────────────────────────────────────────────────────┐
- │  1. DataAnalyst ─── Analyze result history, find patterns ── Haiku  │
- │  2. Retriever ───── Select technique from knowledge base ── Haiku   │
- │  3. Proposer ──┐                                                    │
- │     Critic ────┤── N-round structured debate ── Sonnet + Haiku      │
- │     Proposer ──┤    (reason → challenge → synthesize → finalize)    │
- │     Critic ────┘    (configurable, default 4 rounds)                │
- │  4. Engineer ────── Write complete experiment.py ── Sonnet          │
- │  5. Sandbox ─────── Execute locally or via Slurm ── local/GPU/HPC  │
- │  6. Debugger ────── Fix crashes from stderr (3 retries) ── Haiku   │
- │  7. Tree.add() ──── Record score, persist to tree.json              │
- └──────────────────────────────────────────────────────────────────────┘
-```
+| Step | Agent | Task | Model |
+|------|-------|------|-------|
+| 1 | DataAnalyst | Analyze result history, find patterns | Haiku |
+| 2 | Retriever | Select technique from knowledge base | Haiku |
+| 3 | Proposer / Critic | N-round structured debate (configurable, default 4) | Sonnet + Haiku |
+| 4 | Engineer | Write complete experiment.py | Sonnet |
+| 5 | Sandbox | Execute locally or via Slurm | local / GPU / HPC |
+| 6 | Debugger | Fix crashes from stderr (up to 3 retries) | Haiku |
+| 7 | Tree.add() | Record score, persist to tree.json | — |
 
 The solution tree branches over generations, balancing **exploitation** of the best-scoring experiments with **exploration** of untested parameter regions.
 
@@ -113,7 +102,7 @@ src/agentsciml/
 |-------|-------|---------|
 | DataAnalyst | Haiku | Summarize results history, identify patterns and unexplored regions |
 | Retriever | Haiku | Select 0–1 techniques from curated knowledge base |
-| Proposer | Sonnet | Creative reasoning via N-round structured debate (configurable, default 4) |
+| Proposer | Sonnet | Creative reasoning via structured debate |
 | Critic | Haiku | Challenge proposals, find flaws, assess feasibility |
 | Engineer | Sonnet | Write valid, complete experiment.py code |
 | Debugger | Haiku | Fix crashes using stderr, up to 3 retries |
