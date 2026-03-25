@@ -70,6 +70,9 @@ Available from qcccm.spin_glass.hamiltonians:
                             #   temperature, transverse_field, seed
     sk_couplings            # (N, seed) -> (adjacency, J)
     ea_couplings            # (N, topology, disorder, seed) -> (adjacency, J)
+                            #   topology MUST be one of: 'square', 'chain', 'complete'
+                            #   disorder MUST be one of: 'gaussian', 'bimodal', 'uniform'
+                            #   For 'square', N is rounded down to nearest perfect square (L^2)
     frustration_index       # (adjacency, J) -> float
 
 Available from qcccm.spin_glass.order_params:
@@ -84,7 +87,10 @@ Experiment structure:
     - Call it in if __name__ == "__main__"
     - Each result must call print_result() AND log_result()
     - Use SocialSpinGlassParams to configure models
-    - 30-minute timeout per experiment
+    - 10-minute timeout per experiment — keep sweeps SMALL (< 50 configs total)
+    - ALWAYS use compute_quantum_advantage() for the metric — do NOT compute it manually
+    - quantum_advantage values > 1.0 are physically suspicious — check your logic
+    - Compare the SAME disorder realization: classical and quantum must use identical (adj, J, fields)
 """
 
     def get_metric_name(self) -> str:
