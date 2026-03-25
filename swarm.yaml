@@ -1,0 +1,75 @@
+# AgenticSciML Swarm Configuration
+# All projects are pulled from GitHub and orchestrated via Slurm.
+
+projects:
+  - name: "qcccm"
+    path: "/home/mhough/dev/quantum-cognition"
+    repo_url: "https://github.com/m9h/quantum-cognition.git"
+    priority: "high"
+    slurm:
+      partition: "gpu"
+      gres: "gpu:1"
+      cpus: 8
+      mem: "32G"
+      time: "00:30:00"
+
+  - name: "jaxctrl"
+    path: "/home/mhough/dev/jaxctrl"
+    repo_url: "https://github.com/m9h/jaxctrl.git"
+    priority: "high"
+    slurm:
+      partition: "gpu"
+      gres: "gpu:1"
+      cpus: 8
+      mem: "32G"
+      time: "00:30:00"
+
+  - name: "evo-embodied"
+    path: "/home/mhough/dev/evo-embodied"
+    repo_url: "https://github.com/m9h/evo-embodied.git"
+    priority: "high"
+    slurm:
+      partition: "gpu"
+      gres: "gpu:1"
+      cpus: 16
+      mem: "64G"
+      time: "02:00:00"
+
+  - name: "alf"
+    path: "/home/mhough/dev/alf"
+    repo_url: "https://github.com/m9h/alf.git"
+    priority: "medium"
+    slurm:
+      partition: "gpu"
+      gres: "gpu:1"
+      cpus: 8
+      mem: "32G"
+      time: "00:45:00"
+
+  - name: "organoid-benchmarks"
+    path: "/home/mhough/dev/organoid-hgx-benchmark"
+    repo_url: "https://github.com/m9h/organoid-hgx-benchmark.git"
+    priority: "medium"
+    slurm:
+      partition: "gpu"
+      gres: "gpu:1"
+      cpus: 16
+      mem: "64G"
+      time: "01:00:00"
+
+  - name: "bl1"
+    path: "/home/mhough/dev/neurosim"
+    repo_url: "https://github.com/m9h/bl1.git"
+    priority: "high"
+    slurm:
+      partition: "gpu"
+      gres: "gpu:1"
+      cpus: 16
+      mem: "64G"
+      time: "01:00:00"
+
+# Swarm-level settings
+meta:
+  max_concurrent_slurm_jobs: 10
+  debate_rounds: 6
+  shared_distillation: true

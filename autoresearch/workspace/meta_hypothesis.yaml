@@ -1,0 +1,10 @@
+name: "Optimal Debate Rounds for Quantum Cognition"
+rationale: |
+  Hypothesis: Increasing debate rounds to 6 (above the paper default of 4)
+  will yield more physically consistent hypotheses in QCCCM, 
+  reducing the frequency of null test failures and thus increasing 
+  overall efficiency despite higher per-generation token costs.
+config:
+  debate_rounds: 6
+  max_generations: 2
+  budget_usd: 3.0

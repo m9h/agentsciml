@@ -294,6 +294,23 @@ DataAnalyst (Haiku) → Retriever (Haiku) → Debate[Proposer(Sonnet) ↔ Critic
 - **Knowledge base**: YAML technique cards retrieved per mutation (no vector DB needed)
 - ~1000 lines core logic total
 
+### Advanced Architectural Patterns (Optimus Integration)
+
+To harden the discovery loop and prevent "shortcut solutions," AgenticSciML incorporates patterns inspired by the **Optimus (2025)** architecture:
+
+1. **Observer-Actor Separation**: Decouples the domain-agnostic Global Planner (agentsciml engine) from the physics-heavy Execution Workers (sandbox projects like qcccm/jaxctrl).
+2. **Guard-Rail TDD**: Enforces mandatory `null_test.py` generation for every proposal to mathematically prove physical invariants (e.g., energy bounds, classical limits) *before* expensive simulations.
+3. **Adversarial Regularization**: Uses structured N-round debate (configurable up to 6+ rounds) to stress-test hypotheses against known failure modes and "shortcut" hallucinations.
+4. **Automated Distillation (Upcoming)**: A `Distiller` agent monitors `results.tsv` for breakthrough scores, automatically extracting the winning logic into new "Technique Cards" in the project's local `knowledge.yaml` to ensure long-term learning.
+
+### Standardized Lab Benchmarks (DynaDojo)
+
+For the **jaxctrl** domain, we adopt the **DynaDojo** benchmarking model to measure scientific progress:
+- **Systems**: Standardized dynamical problems (LDS, Pendulum, Lorenz).
+- **Controllers**: Differentiable vs. System-ID baselines.
+- **Challenges**: Evaluation along axes of **System Complexity** (dimension) and **Sample Efficiency** (data size).
+- **Metric**: Normalized control cost across the challenge sweep.
+
 ### Comparison with Gas Town
 Both are multi-agent, but solve different problems:
 - Gas Town: N parallel agents doing independent software engineering tasks, coordinated by a Mayor

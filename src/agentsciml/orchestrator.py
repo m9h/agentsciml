@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
+import importlib.util
+import sys
 
 import anthropic
 
@@ -34,12 +36,32 @@ from .tree import SolutionTree
 
 logger = logging.getLogger(__name__)
 
-N_DEBATE_ROUNDS = 4  # Paper default
+DEFAULT_DEBATE_ROUNDS = 4
 MAX_DEBUG_RETRIES = 3
 DEFAULT_KNOWLEDGE_DIR = Path(__file__).parent.parent.parent / "knowledge"
 
 
 class Orchestrator:
+    @staticmethod
+    def load_adapter(adapter_path: str) -> ProjectAdapter:
+        """Dynamically load a ProjectAdapter from a file path."""
+        path = Path(adapter_path).resolve()
+        spec = importlib.util.spec_from_file_location("external_adapter", path)
+        if spec is None or spec.loader is None:
+            raise ImportError(f"Could not load adapter from {adapter_path}")
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["external_adapter"] = module
+        spec.loader.exec_module(module)
+        
+        # Look for a subclass of ProjectAdapter in the module
+        for name in dir(module):
+            obj = getattr(module, name)
+            if (isinstance(obj, type) and 
+                issubclass(obj, ProjectAdapter) and 
+                obj is not ProjectAdapter):
+                return obj()
+        raise AttributeError(f"No ProjectAdapter subclass found in {adapter_path}")
+
     """Multi-agent evolutionary search for SciML solutions."""
 
     def __init__(
@@ -48,13 +70,16 @@ class Orchestrator:
         *,
         budget_usd: float = 5.0,
         max_generations: int = 20,
+        debate_rounds: int = 4,
         knowledge_file: Path | None = None,
         tree_path: Path | None = None,
+        slurm_config: dict | None = None,
     ) -> None:
         self.adapter = adapter
         self.client = anthropic.Anthropic()
         self.cost = CostTracker(budget_usd=budget_usd)
         self.max_generations = max_generations
+        self.debate_rounds = debate_rounds
 
         # Solution tree
         tree_path = tree_path or (adapter.project_root / "autoresearch" / "tree.json")
@@ -260,19 +285,19 @@ class Orchestrator:
         """Run N-round structured debate between Proposer and Critic."""
         debate_history = ""
 
-        for round_num in range(1, N_DEBATE_ROUNDS + 1):
-            if round_num <= N_DEBATE_ROUNDS - 2:
+        for round_num in range(1, self.debate_rounds + 1):
+            if round_num <= self.debate_rounds - 2:
                 # Reasoning rounds
                 round_instruction = (
-                    f"ROUND {round_num}/{N_DEBATE_ROUNDS} — REASONING ONLY.\n"
+                    f"ROUND {round_num}/{self.debate_rounds} — REASONING ONLY.\n"
                     "Analyze the problem deeply. What patterns do you see in the results? "
                     "What parameter regimes or solver configurations could improve the metric? "
                     "DO NOT propose a strategy yet — just reason."
                 )
-            elif round_num == N_DEBATE_ROUNDS - 1:
+            elif round_num == self.debate_rounds - 1:
                 # Synthesis round
                 round_instruction = (
-                    f"ROUND {round_num}/{N_DEBATE_ROUNDS} — SYNTHESIS.\n"
+                    f"ROUND {round_num}/{self.debate_rounds} — SYNTHESIS.\n"
                     "Based on your reasoning, synthesize a concrete implementation plan. "
                     "Output a JSON object with: strategy, changes, expected_impact, "
                     "technique_used (or null), code_outline."
@@ -280,7 +305,7 @@ class Orchestrator:
             else:
                 # Finalization round
                 round_instruction = (
-                    f"ROUND {round_num}/{N_DEBATE_ROUNDS} — FINALIZATION.\n"
+                    f"ROUND {round_num}/{self.debate_rounds} — FINALIZATION.\n"
                     "Produce your final implementation-ready proposal as JSON. "
                     "Incorporate any valid critic feedback. Output ONLY the JSON."
                 )
@@ -303,12 +328,12 @@ class Orchestrator:
             debate_history += f"\n--- Proposer Round {round_num} ---\n{proposer_response}\n"
 
             # Critic (skip on final round)
-            if round_num < N_DEBATE_ROUNDS:
+            if round_num < self.debate_rounds:
                 critic_docs = {
                     "analysis": analysis.model_dump_json(),
                     "proposer_output": proposer_response,
                     "round_instruction": (
-                        f"Round {round_num}/{N_DEBATE_ROUNDS}."
+                        f"Round {round_num}/{self.debate_rounds}."
                         " Challenge the proposer's reasoning."
                     ),
                 }
