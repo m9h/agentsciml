@@ -71,8 +71,6 @@ class Orchestrator:
                 kf = DEFAULT_KNOWLEDGE_DIR / "dmipy_techniques.yaml"
             elif "golf" in adapter_name or "parametergolf" in adapter_name:
                 kf = DEFAULT_KNOWLEDGE_DIR / "parameter_golf_techniques.yaml"
-            elif "neurosim" in adapter_name or "bl1" in adapter_name:
-                kf = DEFAULT_KNOWLEDGE_DIR / "neurosim_techniques.yaml"
             else:
                 kf = DEFAULT_KNOWLEDGE_DIR / "qcccm_techniques.yaml"
         self.techniques: list[TechniqueCard] = []

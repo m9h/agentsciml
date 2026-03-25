@@ -1,129 +1,217 @@
+<p align="center">
+  <img src="https://img.shields.io/badge/python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.11+">
+  <img src="https://img.shields.io/badge/anthropic-Claude_API-cc785c?style=for-the-badge&logo=anthropic&logoColor=white" alt="Claude API">
+  <img src="https://img.shields.io/badge/license-MIT-green?style=for-the-badge" alt="MIT License">
+  <img src="https://img.shields.io/badge/cost-$0.05--0.50_per_gen-blue?style=for-the-badge" alt="Cost">
+</p>
+
 # AgenticSciML
 
-Multi-agent evolutionary framework for automated scientific machine learning discovery.
+> **Multi-agent evolutionary framework for automated scientific machine learning discovery.**
+>
+> Coordinates a swarm of specialized LLM agents that propose, debate, implement, and evaluate scientific computing experiments — evolving solutions through structured debate and evolutionary search.
 
 Based on [AgenticSciML](https://arxiv.org/abs/2511.07262) (Jiang & Karniadakis, 2025) with swarm cost optimization from [Flexible Swarm Learning](https://arxiv.org/abs/2510.06349) (Samadi & Schuppert, 2025).
 
-## What it does
+---
 
-AgenticSciML coordinates specialized LLM agents that collaboratively propose, critique, and refine scientific computing experiments through structured debate and evolutionary search. Instead of a human manually tuning parameters and architectures, the system:
+## How It Works
 
-1. **Analyzes** experimental history to identify patterns and unexplored regions
-2. **Retrieves** relevant techniques from a curated knowledge base
-3. **Debates** — a Proposer reasons about what to try; a Critic challenges the reasoning
-4. **Implements** the proposed mutation as executable experiment code
-5. **Evaluates** results in a sandboxed subprocess
-6. **Evolves** — maintains a branching solution tree, balancing exploitation of the best solutions with exploration of new directions
+Instead of a human manually tuning parameters and architectures, AgenticSciML runs an evolutionary loop where each generation passes through a pipeline of 8 specialized agents:
 
-The evolutionary tree typically discovers strategies that outperform single-shot approaches by orders of magnitude, including novel combinations not present in the knowledge base.
+```
+                         ┌─────────────────────────────┐
+                         │     ORCHESTRATOR             │
+                         │  Evolutionary Loop Control   │
+                         └──────────┬──────────────────┘
+                                    │
+              ┌─────────────────────┼─────────────────────┐
+              ▼                     ▼                     ▼
+     ┌────────────────┐   ┌────────────────┐   ┌────────────────┐
+     │  SOLUTION TREE  │   │  COST TRACKER  │   │ KNOWLEDGE BASE │
+     │  Exploit/Explore│   │  Swarm Budget  │   │  YAML Techniques│
+     └────────────────┘   └────────────────┘   └────────────────┘
+```
 
-### Swarm cost optimization
+### Per-Mutation Agent Pipeline
 
-Following the swarm learning insight that ensembles of smaller specialized agents can outperform monolithic large models, AgenticSciML routes ~80% of calls to fast/cheap models (Haiku) and reserves expensive reasoning models (Sonnet/Opus) for creative proposal generation and code writing. Typical cost per evolutionary generation: **$0.05–0.50**.
+```
+ ┌─ 1. DataAnalyst ──── Analyze result history, find patterns ─────────── Haiku ─┐
+ │  2. Retriever ─────── Select technique from knowledge base ─────────── Haiku  │
+ │  3. Proposer ──┐                                                              │
+ │     Critic ────┤──── 4-round structured debate ─────────── Sonnet + Haiku     │
+ │     Proposer ──┤      (reason → challenge → synthesize → finalize)            │
+ │     Critic ────┘                                                              │
+ │  4. Engineer ──────── Write complete experiment.py ─────────────── Sonnet     │
+ │  5. Sandbox ───────── Execute in subprocess (30 min timeout) ──── local/GPU   │
+ │  6. Debugger ──────── Fix crashes from stderr (up to 3 retries) ── Haiku     │
+ └─ 7. Tree.add() ────── Record score, persist to tree.json ────────────────────┘
+```
 
-## Installation
+The solution tree branches over generations, balancing **exploitation** of the best-scoring experiments with **exploration** of untested parameter regions.
+
+### Swarm Cost Optimization
+
+Following the swarm learning insight that ensembles of smaller specialized agents can outperform monolithic large models:
+
+| Model | Usage | Role |
+|-------|-------|------|
+| **Haiku** | ~80% of calls | Analysis, retrieval, critique, debugging, voting |
+| **Sonnet** | ~20% of calls | Creative proposal generation, code writing |
+| **Opus** | Escalation only | Reserved for complex failures |
+
+**Typical cost per evolutionary generation: $0.05 – $0.50**
+
+---
+
+## Quick Start
 
 ```bash
+# Install
 git clone https://github.com/m9h/agentsciml.git
 cd agentsciml
 uv sync --all-extras
-```
 
-Requires an `ANTHROPIC_API_KEY` environment variable.
+# Set your API key
+export ANTHROPIC_API_KEY="sk-ant-..."
 
-## Usage
-
-```bash
-# Run evolutionary search on a project
+# Run evolutionary search
 agentsciml run --project ~/dev/quantum-cognition --budget 5.0 --generations 20
 
 # Check solution tree status
 agentsciml status --project ~/dev/quantum-cognition
 ```
 
+---
+
 ## Architecture
 
 ```
-orchestrator.py     Evolutionary loop (init → root → tree expansion)
-agents.py           8 agent roles with model-tier routing
-tree.py             Solution tree with exploitation/exploration parent selection
-knowledge.py        YAML-based technique knowledge base
-sandbox.py          Subprocess execution with timeout and RESULT| parsing
-cost.py             Token tracking, budget caps, escalation rules
-protocols.py        Pydantic models for typed inter-agent document passing
-adapters/           Project-specific bridges (one per target project)
+src/agentsciml/
+├── orchestrator.py     Evolutionary loop (init → root → tree expansion)
+├── agents.py           8 agent roles with model-tier routing
+├── tree.py             Solution tree with exploitation/exploration parent selection
+├── knowledge.py        YAML-based technique knowledge base
+├── sandbox.py          Subprocess execution with timeout and RESULT| parsing
+├── cost.py             Token tracking and budget enforcement
+├── protocols.py        9 Pydantic models for typed inter-agent document passing
+├── cli.py              Click CLI (run, status)
+└── adapters/
+    ├── base.py         Abstract ProjectAdapter interface
+    ├── qcccm.py        Quantum cognition (VQE, QAOA, spin glasses)
+    ├── dmipy.py        Diffusion MRI microstructure
+    └── parameter_golf.py   GPT training (OpenAI parameter-golf)
 ```
 
-### Agent roles
+### Agent Roles
 
 | Agent | Model | Purpose |
 |-------|-------|---------|
-| DataAnalyst | Haiku | Summarize results history, identify patterns |
-| Retriever | Haiku | Select 0–1 techniques from knowledge base |
-| Proposer | Sonnet | Creative reasoning via structured debate |
-| Critic | Haiku | Challenge proposals, find flaws |
-| Engineer | Sonnet | Write valid experiment code |
-| Debugger | Haiku | Fix crashes from stderr |
-| ResultAnalyst | Haiku | Evaluate and compare results |
-| SelectorEnsemble | 3× Haiku | Diverse voting for parent selection |
+| DataAnalyst | Haiku | Summarize results history, identify patterns and unexplored regions |
+| Retriever | Haiku | Select 0–1 techniques from curated knowledge base |
+| Proposer | Sonnet | Creative reasoning via 4-round structured debate |
+| Critic | Haiku | Challenge proposals, find flaws, assess feasibility |
+| Engineer | Sonnet | Write valid, complete experiment.py code |
+| Debugger | Haiku | Fix crashes using stderr, up to 3 retries |
+| ResultAnalyst | Haiku | Evaluate and compare experiment results |
+| SelectorEnsemble | 3x Haiku | Diverse voting for next-generation parent selection |
 
-## Application areas
+### Key Design Decisions
 
-AgenticSciML is designed for JAX-based scientific computing projects with a `loss → gradient → optimize` loop. Each project needs a thin adapter (~50 lines) mapping its experiment interface to the framework.
+- **Document-passing, not chat history** — each agent call gets freshly assembled context documents, no unbounded memory growth
+- **Append-only tree** — all experiments persisted in `tree.json`, never deleted or modified
+- **RESULT| contract** — experiments emit structured `RESULT|key=val|...` lines for mechanical score parsing
+- **No framework** — the orchestrator is a plain Python loop; no LangChain, no LlamaIndex
 
-### Quantum cognition — [qcccm](https://github.com/m9h/quantum-cognition)
+---
+
+## Application Areas
+
+AgenticSciML targets JAX-based scientific computing projects with a `loss → gradient → optimize` loop. Each project needs a thin adapter (~50 lines) mapping its experiment interface to the framework.
+
+<details>
+<summary><strong>Quantum Cognition — qcccm</strong></summary>
+
+> [github.com/m9h/quantum-cognition](https://github.com/m9h/quantum-cognition)
 
 Quantum cognition library exploiting the Hamiltonian isomorphism between disordered magnets and multi-agent social systems. JAX + PennyLane.
 
-**AgenticSciML targets:** VQE ansatz discovery, QAOA depth-vs-performance tradeoffs, solver meta-selection (when to switch from PIMC to VQE to QAOA), Trotter number optimization, transverse field annealing schedules. The primary metric — `quantum_advantage = (E_classical - E_quantum) / |E_exact|` — measures whether quantum methods find lower-energy social equilibria than classical Monte Carlo.
+**Targets:** VQE ansatz discovery, QAOA depth-vs-performance tradeoffs, solver meta-selection (PIMC → VQE → QAOA), Trotter number optimization, transverse field annealing schedules.
 
-### Differentiable control — [jaxctrl](https://github.com/m9h/jaxctrl)
+**Metric:** `quantum_advantage = (E_classical - E_quantum) / |E_exact|` (maximize)
+</details>
 
-Differentiable control theory in JAX: Lyapunov/Riccati solvers, LQR, system identification (SINDy/DMD/Koopman), tensor-based control, hypergraph controllability.
+<details>
+<summary><strong>OpenAI Parameter Golf — parameter-golf</strong></summary>
 
-**AgenticSciML targets:** SINDy hyperparameter tuning (sparsity threshold, polynomial degree, Fourier harmonics), operator basis discovery for Koopman learning, multi-system joint identification. The framework can evolve governing equation ansatze — which combination of polynomial and Fourier features best recovers unknown dynamics from time-series data.
+> [github.com/openai/parameter-golf](https://github.com/openai/parameter-golf)
 
-### Active inference — [alf](https://github.com/m9h/alf)
+Train the best possible LLM within hard constraints: 16 MB compressed artifact, 10-minute training on 8xH100, no external data.
 
-Standalone JAX-native active inference library with differentiable HMM learning, expected free energy computation, hierarchical inference, and deep generative models.
+**Targets:** Architecture (vocab, depth, width, GQA, layer sharing), quantization (INT5/INT6/INT8, QAT), tokenizer (SentencePiece, BigramHash), optimizer (Muon/Adam), training schedule (SWA, cosine, warmup), compression (sparsity, low-rank).
 
-**AgenticSciML targets:** Generative model structure search (A/B/C/D matrix sparsity and rank), EFE horizon optimization, precision scheduling, learning rate meta-optimization. The key question: in which environments does active inference exhibit qualitatively different behavior from RL baselines (information-seeking, risk-sensitivity, habit formation)?
+**Metric:** `bits_per_byte` on FineWeb validation (minimize)
+</details>
 
-### Cortical culture simulation — [bl1](https://github.com/m9h/bl1)
+<details>
+<summary><strong>Diffusion MRI Microstructure — dmipy</strong></summary>
 
-In-silico cortical culture simulator (DishBrain-inspired) — JAX-based spiking neural network with STDP, virtual MEA, and closed-loop game experiments. Simulates dissociated cortical cultures on multi-electrode arrays at 5.3× realtime for 10K neurons on A100.
+> [github.com/AthenaEPI/dmipy](https://github.com/AthenaEPI/dmipy)
 
-**AgenticSciML targets:** STDP rule parameter sweeps (timing windows, learning rates), network topology evolution (connectivity patterns that produce target firing statistics), pharmacological intervention optimization (which virtual drug combinations maximize information transfer), and closed-loop stimulation protocol discovery. The evolutionary search can explore the space of plasticity rules and connectivity motifs to find cultures that learn game tasks fastest.
+Open-source toolbox for brain tissue microstructure estimation from diffusion MRI. Multi-compartment modeling with modular architecture.
 
-### Evolutionary robotics — evo-embodied
+**Targets:** Compartment model selection, neural posterior estimation architecture search (MLP/E3/Flow), orientation distribution optimization, acquisition protocol design.
 
-GPU-accelerated evolutionary robotics environment using MuJoCo-MJX and JAX. Replaces sequential PyBullet simulations with vectorized GPU evaluation, achieving 100–1000× speedup for neuroevolution.
+**Metric:** `fiber_orientation_error` in degrees (minimize)
+</details>
 
-**AgenticSciML targets:** Fitness function design, morphology parameterization, neural controller architecture search. The framework can evolve experiment configurations — which combinations of body plan parameters, mutation operators, and selection pressures produce the most diverse and capable locomotion strategies. Particularly suited because the fast MJX evaluation loop means the GPU compute bottleneck is small relative to LLM reasoning time.
+<details>
+<summary><strong>Differentiable Control — jaxctrl</strong> (planned)</summary>
 
-### Diffusion MRI microstructure — [dmipy](https://github.com/AthenaEPI/dmipy)
+> [github.com/m9h/jaxctrl](https://github.com/m9h/jaxctrl)
 
-Open-source toolbox for reproducible estimation of brain tissue microstructure from diffusion MRI. Multi-compartment modeling with modular architecture for custom tissue models.
+Differentiable control theory in JAX: Lyapunov/Riccati solvers, LQR, SINDy/DMD/Koopman.
 
-**AgenticSciML targets:** Compartment model selection (which combination of intra-axonal, extra-axonal, and CSF compartments best fits a given acquisition scheme), orientation distribution optimization, and acquisition protocol design. The evolutionary search can explore the combinatorial space of multi-compartment models — testing whether novel compartment combinations improve parameter recovery on specific tissue types or pathologies.
+**Targets:** SINDy hyperparameter tuning, operator basis discovery for Koopman learning, multi-system joint identification.
+</details>
 
-## Writing a project adapter
+<details>
+<summary><strong>Active Inference — alf</strong> (planned)</summary>
+
+> [github.com/m9h/alf](https://github.com/m9h/alf)
+
+Standalone JAX-native active inference library with differentiable HMM learning and expected free energy.
+
+**Targets:** Generative model structure search, EFE horizon optimization, precision scheduling.
+</details>
+
+<details>
+<summary><strong>Evolutionary Robotics — evo-embodied</strong> (planned)</summary>
+
+GPU-accelerated evolutionary robotics via MuJoCo-MJX + JAX. 100–1000x speedup over PyBullet.
+
+**Targets:** Fitness function design, morphology parameterization, neural controller architecture search.
+</details>
+
+---
+
+## Writing a Project Adapter
 
 ```python
 from agentsciml.adapters.base import ProjectAdapter
 
 class MyProjectAdapter(ProjectAdapter):
     def get_context(self) -> str:
-        """Return project description and research goals."""
+        """Project description and research goals."""
 
     def get_results_history(self) -> str:
-        """Return accumulated experimental results (TSV, CSV, etc.)."""
+        """Accumulated experimental results (TSV/CSV)."""
 
     def get_current_experiment(self) -> str:
-        """Return current experiment code."""
+        """Current experiment.py code."""
 
     def get_available_api(self) -> str:
-        """Return the API surface the Engineer agent must use."""
+        """API surface the Engineer agent must use."""
 
     def get_metric_name(self) -> str:
         """Primary metric name (e.g. 'quantum_advantage')."""
@@ -133,12 +221,67 @@ class MyProjectAdapter(ProjectAdapter):
 
     def parse_score(self, result_lines: list[str]) -> float:
         """Extract primary metric from experiment output."""
+
+    # Optional overrides:
+    def get_score_direction(self) -> str:
+        """'maximize' (default) or 'minimize'."""
+
+    def get_constraints(self) -> str:
+        """Domain-specific hard constraints for the Critic agent."""
 ```
+
+---
+
+## Deployment
+
+| Target | Command | Notes |
+|--------|---------|-------|
+| **Local** | `agentsciml run -p ~/project` | CPU or local GPU |
+| **RunPod** | `make gpu-up && make gpu-run` | A100 cloud GPU |
+| **DGX Spark** | `sbatch scripts/slurm_run.sh` | HPC cluster |
+| **Docker** | `docker build -t agentsciml .` | Containerized |
+
+---
+
+## Development
+
+```bash
+make test          # Run test suite
+make lint          # Ruff linter
+make fmt           # Ruff formatter
+make cov           # Coverage report (>60% threshold)
+```
+
+---
 
 ## References
 
+### Core
+
 - Jiang, Q. & Karniadakis, G. E. (2025). AgenticSciML: Collaborative Multi-Agent Systems for Emergent Discovery in Scientific Machine Learning. [arXiv:2511.07262](https://arxiv.org/abs/2511.07262)
 - Samadi, M. E. & Schuppert, A. (2025). Flexible Swarm Learning May Outpace Foundation Models in Essential Tasks. [arXiv:2510.06349](https://arxiv.org/abs/2510.06349)
+
+### Automated Scientific Discovery
+
+- Lu, C. et al. (2024). The AI Scientist: Towards Fully Automated Open-Ended Scientific Discovery. [arXiv:2408.06292](https://arxiv.org/abs/2408.06292)
+- Yamada, Y. et al. (2025). The AI Scientist-v2: Workshop-Level Automated Scientific Discovery via Agentic Tree Search. [arXiv:2504.08066](https://arxiv.org/abs/2504.08066)
+- Boiko, D. A. et al. (2023). Autonomous Chemical Research with Large Language Models. [arXiv:2304.05332](https://arxiv.org/abs/2304.05332)
+
+### Evolutionary LLM Code Search
+
+- Romera-Paredes, B. et al. (2023). Mathematical Discoveries from Program Search with Large Language Models (FunSearch). [Nature 625, 468–475](https://www.nature.com/articles/s41586-023-06924-6)
+- Lehman, J. et al. (2022). Evolution through Large Models. [arXiv:2206.08896](https://arxiv.org/abs/2206.08896)
+- Chen, A. et al. (2023). EvoPrompting: Language Models for Code-Level Neural Architecture Search. [arXiv:2302.14838](https://arxiv.org/abs/2302.14838)
+
+### ML Research Agents
+
+- Weco AI (2025). AIDE: AI-Driven Exploration in the Space of Code. [arXiv:2502.13138](https://arxiv.org/abs/2502.13138)
+- Shinn, N. et al. (2023). Reflexion: Language Agents with Verbal Reinforcement Learning. [arXiv:2303.11366](https://arxiv.org/abs/2303.11366)
+
+### Multi-Agent Reasoning
+
+- Du, Y. et al. (2023). Improving Factuality and Reasoning in Language Models through Multiagent Debate. [arXiv:2305.14325](https://arxiv.org/abs/2305.14325)
+- Zhou, A. et al. (2023). Language Agent Tree Search Unifies Reasoning, Acting, and Planning in Language Models. [arXiv:2310.04406](https://arxiv.org/abs/2310.04406)
 
 ## License
 
