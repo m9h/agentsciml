@@ -20,32 +20,34 @@ Based on [AgenticSciML](https://arxiv.org/abs/2511.07262) (Jiang & Karniadakis, 
 Instead of a human manually tuning parameters and architectures, AgenticSciML runs an evolutionary loop where each generation passes through a pipeline of 8 specialized agents:
 
 ```
-                         ┌─────────────────────────────┐
-                         │     ORCHESTRATOR             │
-                         │  Evolutionary Loop Control   │
-                         └──────────┬──────────────────┘
-                                    │
-              ┌─────────────────────┼─────────────────────┐
-              ▼                     ▼                     ▼
-     ┌────────────────┐   ┌────────────────┐   ┌────────────────┐
-     │  SOLUTION TREE  │   │  COST TRACKER  │   │ KNOWLEDGE BASE │
-     │  Exploit/Explore│   │  Swarm Budget  │   │  YAML Techniques│
-     └────────────────┘   └────────────────┘   └────────────────┘
+                    ┌──────────────────────────────┐
+                    │         ORCHESTRATOR          │
+                    │    Evolutionary Loop Control   │
+                    └──────────────┬───────────────┘
+                                  │
+            ┌─────────────────────┼─────────────────────┐
+            ▼                     ▼                     ▼
+   ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
+   │  SOLUTION TREE   │  │  COST TRACKER   │  │  KNOWLEDGE BASE │
+   │ Exploit / Explore│  │  Swarm Budget   │  │ YAML Techniques │
+   └─────────────────┘  └─────────────────┘  └─────────────────┘
 ```
 
 ### Per-Mutation Agent Pipeline
 
 ```
- ┌─ 1. DataAnalyst ──── Analyze result history, find patterns ─────────── Haiku ─┐
- │  2. Retriever ─────── Select technique from knowledge base ─────────── Haiku  │
- │  3. Proposer ──┐                                                              │
- │     Critic ────┤──── N-round structured debate (default 4) ── Sonnet + Haiku  │
- │     Proposer ──┤      (reason → challenge → synthesize → finalize)            │
- │     Critic ────┘                                                              │
- │  4. Engineer ──────── Write complete experiment.py ─────────────── Sonnet     │
- │  5. Sandbox ───────── Execute locally or via remote Slurm ──── local/GPU/HPC  │
- │  6. Debugger ──────── Fix crashes from stderr (up to 3 retries) ── Haiku     │
- └─ 7. Tree.add() ────── Record score, persist to tree.json ────────────────────┘
+ ┌──────────────────────────────────────────────────────────────────────┐
+ │  1. DataAnalyst ─── Analyze result history, find patterns ── Haiku  │
+ │  2. Retriever ───── Select technique from knowledge base ── Haiku   │
+ │  3. Proposer ──┐                                                    │
+ │     Critic ────┤── N-round structured debate ── Sonnet + Haiku      │
+ │     Proposer ──┤    (reason → challenge → synthesize → finalize)    │
+ │     Critic ────┘    (configurable, default 4 rounds)                │
+ │  4. Engineer ────── Write complete experiment.py ── Sonnet          │
+ │  5. Sandbox ─────── Execute locally or via Slurm ── local/GPU/HPC  │
+ │  6. Debugger ────── Fix crashes from stderr (3 retries) ── Haiku   │
+ │  7. Tree.add() ──── Record score, persist to tree.json              │
+ └──────────────────────────────────────────────────────────────────────┘
 ```
 
 The solution tree branches over generations, balancing **exploitation** of the best-scoring experiments with **exploration** of untested parameter regions.
@@ -88,21 +90,21 @@ agentsciml status --project ~/dev/quantum-cognition
 
 ```
 src/agentsciml/
-├── orchestrator.py     Evolutionary loop (init → root → tree expansion)
-├── agents.py           8 agent roles with model-tier routing
-├── swarm.py            Multi-project parallel orchestration with GitHub sync
-├── tree.py             Solution tree with exploitation/exploration parent selection
-├── knowledge.py        YAML-based technique knowledge base
-├── sandbox.py          Local subprocess or remote Slurm execution
-├── cost.py             Token tracking and budget enforcement
-├── protocols.py        9 Pydantic models for typed inter-agent document passing
-├── cli.py              Click CLI (run, status)
+├── orchestrator.py      Evolutionary loop (init → root → tree expansion)
+├── agents.py            8 agent roles with model-tier routing
+├── swarm.py             Multi-project parallel orchestration with GitHub sync
+├── tree.py              Solution tree with exploitation/exploration selection
+├── knowledge.py         YAML-based technique knowledge base
+├── sandbox.py           Local subprocess or remote Slurm execution
+├── cost.py              Token tracking and budget enforcement
+├── protocols.py         Pydantic models for typed inter-agent documents
+├── cli.py               Click CLI (run, status)
 └── adapters/
-    ├── base.py         Abstract ProjectAdapter interface
-    ├── qcccm.py        Quantum cognition (VQE, QAOA, spin glasses)
-    ├── dmipy.py        Diffusion MRI microstructure
-    ├── parameter_golf.py   GPT training (OpenAI parameter-golf)
-    └── meta.py         Meta-architecture optimization (parameter golf over orchestrator settings)
+    ├── base.py          Abstract ProjectAdapter interface
+    ├── qcccm.py         Quantum cognition (VQE, QAOA, spin glasses)
+    ├── dmipy.py         Diffusion MRI microstructure
+    ├── parameter_golf.py  GPT training (OpenAI parameter-golf)
+    └── meta.py          Meta-architecture optimization (orchestrator tuning)
 ```
 
 ### Agent Roles
