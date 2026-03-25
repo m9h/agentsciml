@@ -20,6 +20,20 @@ class MetaSciMLAdapter(ProjectAdapter):
         root = project_root or Path.home() / "dev" / "agentsciml"
         super().__init__(root)
 
+    def get_results_history(self) -> str:
+        """Return results history from the target project's autoresearch output."""
+        results_tsv = self.project_root / "autoresearch" / "results.tsv"
+        if results_tsv.exists():
+            return results_tsv.read_text()
+        return ""
+
+    def get_current_experiment(self) -> str:
+        """Return the current meta-hypothesis YAML as the 'experiment'."""
+        hyp = self.project_root / "autoresearch" / "workspace" / "meta_hypothesis.yaml"
+        if hyp.exists():
+            return hyp.read_text()
+        return ""
+
     def get_context(self) -> str:
         return (
             "Meta-Architecture Parameter Golf: Optimize the Orchestrator settings "

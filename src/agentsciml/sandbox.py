@@ -132,9 +132,11 @@ uv run --no-sync python {entry_point}
     script_path = project_root / "slurm_submit.sh"
     script_path.write_text(sbatch_script)
     
-    # 1. Sync script to DGX (Basic assumption: /home/mhough/dev is shared or mirrors)
-    # 2. Submit via SSH
-    logger.info("Submitting job to DGX Spark via SSH...")
+    # Copy script to remote, then submit via SSH
+    logger.info("Syncing script and submitting job to DGX Spark via SSH...")
+    scp_cmd = ["scp", "-o", "ConnectTimeout=10", "-i", dgx_key, str(script_path),
+               f"{dgx_user}@{dgx_host}:{script_path}"]
+    subprocess.run(scp_cmd, capture_output=True, text=True)
     res = subprocess.run(ssh_prefix + [f"sbatch {script_path}"], capture_output=True, text=True)
     
     if res.returncode != 0:

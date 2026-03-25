@@ -42,6 +42,8 @@ DEFAULT_KNOWLEDGE_DIR = Path(__file__).parent.parent.parent / "knowledge"
 
 
 class Orchestrator:
+    """Multi-agent evolutionary search for SciML solutions."""
+
     @staticmethod
     def load_adapter(adapter_path: str) -> ProjectAdapter:
         """Dynamically load a ProjectAdapter from a file path."""
@@ -52,17 +54,15 @@ class Orchestrator:
         module = importlib.util.module_from_spec(spec)
         sys.modules["external_adapter"] = module
         spec.loader.exec_module(module)
-        
+
         # Look for a subclass of ProjectAdapter in the module
         for name in dir(module):
             obj = getattr(module, name)
-            if (isinstance(obj, type) and 
-                issubclass(obj, ProjectAdapter) and 
-                obj is not ProjectAdapter):
+            if (isinstance(obj, type)
+                    and issubclass(obj, ProjectAdapter)
+                    and obj is not ProjectAdapter):
                 return obj()
         raise AttributeError(f"No ProjectAdapter subclass found in {adapter_path}")
-
-    """Multi-agent evolutionary search for SciML solutions."""
 
     def __init__(
         self,
