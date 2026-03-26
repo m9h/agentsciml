@@ -57,17 +57,6 @@ projects:
       mem: "64G"
       time: "01:00:00"
 
-  - name: "bl1"
-    path: "~/dev/neurosim"
-    repo_url: "https://github.com/m9h/bl1.git"
-    priority: "high"
-    slurm:
-      partition: "gpu"
-      gres: "gpu:1"
-      cpus: 16
-      mem: "64G"
-      time: "01:00:00"
-
 # Swarm-level settings
 meta:
   max_concurrent_slurm_jobs: 10
