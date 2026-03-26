@@ -50,10 +50,17 @@ def main(verbose: bool) -> None:
 )
 @click.option(
     "--adapter", "-a",
-    type=click.Choice(["qcccm", "dmipy", "auto"]),
+    type=str,
     default="auto",
     show_default=True,
-    help="Project adapter to use",
+    help="Adapter: 'qcccm', 'dmipy', 'parameter_golf', 'meta', 'auto', or path to adapter.py",
+)
+@click.option(
+    "--debate-rounds", "-d",
+    type=int,
+    default=4,
+    show_default=True,
+    help="Number of structured debate rounds per mutation",
 )
 def run(
     project: Path,
@@ -61,25 +68,58 @@ def run(
     generations: int,
     knowledge: Path | None,
     adapter: str,
+    debate_rounds: int,
 ) -> None:
     """Run the evolutionary multi-agent search on a project."""
     from .adapters.dmipy import DmipyAdapter
+    from .adapters.meta import MetaSciMLAdapter
+    from .adapters.parameter_golf import ParameterGolfAdapter
     from .adapters.qcccm import QCCCMAdapter
     from .orchestrator import Orchestrator
 
+    BUILTIN_ADAPTERS = {
+        "qcccm": QCCCMAdapter,
+        "dmipy": DmipyAdapter,
+        "parameter_golf": ParameterGolfAdapter,
+        "meta": MetaSciMLAdapter,
+    }
+
     # Select adapter
-    if adapter == "qcccm" or (adapter == "auto" and "quantum" in str(project).lower()):
-        project_adapter = QCCCMAdapter(project)
-    elif adapter == "dmipy" or (adapter == "auto" and "dmipy" in str(project).lower()):
-        project_adapter = DmipyAdapter(project)
+    if adapter in BUILTIN_ADAPTERS:
+        project_adapter = BUILTIN_ADAPTERS[adapter](project)
+    elif adapter != "auto" and Path(adapter).is_file():
+        project_adapter = Orchestrator.load_adapter(adapter)
+        project_adapter.project_root = project
+    elif adapter == "auto":
+        # Auto-detect from project path
+        project_str = str(project).lower()
+        if "quantum" in project_str or "qcccm" in project_str:
+            project_adapter = QCCCMAdapter(project)
+        elif "dmipy" in project_str:
+            project_adapter = DmipyAdapter(project)
+        elif "parameter" in project_str or "golf" in project_str:
+            project_adapter = ParameterGolfAdapter(project)
+        else:
+            # Try loading adapter.py from project root
+            adapter_file = project / "adapter.py"
+            if adapter_file.exists():
+                project_adapter = Orchestrator.load_adapter(str(adapter_file))
+                project_adapter.project_root = project
+            else:
+                click.echo(
+                    f"No adapter found for {project}. Use --adapter to specify.",
+                    err=True,
+                )
+                sys.exit(1)
     else:
-        click.echo(f"No adapter found for {project}. Use --adapter to specify.", err=True)
+        click.echo(f"Adapter not found: {adapter}", err=True)
         sys.exit(1)
 
     click.echo(f"Project: {project}")
     click.echo(f"Adapter: {type(project_adapter).__name__}")
     click.echo(f"Budget: ${budget:.2f}")
     click.echo(f"Max generations: {generations}")
+    click.echo(f"Debate rounds: {debate_rounds}")
     click.echo()
 
     orch = Orchestrator(
@@ -87,6 +127,7 @@ def run(
         budget_usd=budget,
         max_generations=generations,
         knowledge_file=knowledge,
+        debate_rounds=debate_rounds,
     )
 
     best = orch.run()
