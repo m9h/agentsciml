@@ -81,7 +81,7 @@ Experiment structure:
     - Define run_experiment() function
     - Call it in if __name__ == "__main__"
     - Each result must call print_result() AND log_result()
-    - 5-minute timeout — keep total fits under ~32 (4 models x 2 subjects x 4 param sets)
+    - 10-minute timeout — keep total fits under ~48 (4 models x 2 subjects x 6 strategies)
     - theta is log-deviations from defaults: actual_param = exp(theta[i]) * default[i]
     - spectral_fit = -spectral_loss (higher is better)
     - Explore: lr schedules, more/fewer free params, different param combos,
@@ -120,7 +120,7 @@ Experiment structure:
     def get_constraints(self) -> str:
         return (
             "Hard constraints:\n"
-            "1. Total experiment wall time < 5 minutes (RTX 2080, 8GB).\n"
+            "1. Total experiment wall time < 10 minutes (RTX 2080, 8GB).\n"
             "2. DO NOT modify prepare.py.\n"
             "3. Use deterministic seeds for reproducibility.\n"
             "4. Must fit ALL 4 models (liley, cmc, rrw, cbei).\n"
