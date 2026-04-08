@@ -97,19 +97,25 @@ Experiment structure:
     def parse_score(self, result_lines: list[str]) -> float:
         """Extract best spectral_fit from RESULT| lines.
 
-        We want the aggregate (model=ALL) line, or the best individual.
+        Returns a normalized score in [0, 1] for compatibility with the
+        orchestrator's sanity check (|score| > 1.0 = suspicious).
+        Normalization: score = 1 / (1 + mean_loss / 100)
+        So loss=0 -> score=1.0, loss=100 -> 0.5, loss=1000 -> 0.09.
         """
-        best = float("-inf")
+        losses = []
         for line in result_lines:
             parts = line.split("|")
             for part in parts:
-                if part.strip().startswith("spectral_fit="):
+                if part.strip().startswith("loss="):
                     try:
                         val = float(part.strip().split("=", 1)[1])
-                        best = max(best, val)
+                        losses.append(val)
                     except ValueError:
                         continue
-        return best if best > float("-inf") else -1e10
+        if not losses:
+            return 0.0
+        mean_loss = sum(losses) / len(losses)
+        return 1.0 / (1.0 + mean_loss / 100.0)
 
     def get_constraints(self) -> str:
         return (

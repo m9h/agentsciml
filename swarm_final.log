@@ -1,0 +1,9 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/mhough/dev/agentsciml/src/agentsciml/swarm.py", line 15, in <module>
+    from .orchestrator import Orchestrator
+  File "/home/mhough/dev/agentsciml/src/agentsciml/orchestrator.py", line 39, in <module>
+    self.debate_rounds = 4  # Paper default
+    ^^^^
+NameError: name 'self' is not defined
