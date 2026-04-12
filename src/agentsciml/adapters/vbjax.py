@@ -120,11 +120,16 @@ Experiment structure:
     def get_constraints(self) -> str:
         return (
             "Hard constraints:\n"
-            "1. Total experiment wall time < 10 minutes (RTX 2080, 8GB).\n"
+            "1. Total experiment wall time < 10 minutes (RTX 2080, 8GB VRAM).\n"
             "2. DO NOT modify prepare.py.\n"
             "3. Use deterministic seeds for reproducibility.\n"
             "4. Must fit ALL 4 models (liley, cmc, rrw, cbei).\n"
             "5. Must call print_result() AND log_result() for every fit.\n"
             "6. theta values are log-deviations: param = exp(theta) * default.\n"
             "   Values outside [-3, 3] are suspicious (exp(3) ≈ 20x default).\n"
+            "7. GPU has only 8GB VRAM. Keep total fits ≤ 16 (4 models x 2 subjects x 2 strategies).\n"
+            "   More fits will cause CUDA OOM crashes.\n"
+            "8. Use ONLY the functions from prepare.py. Do NOT import jax directly.\n"
+            "9. Do NOT use vmap, pmap, or batched operations — they multiply memory usage.\n"
+            "10. Keep n_opt_steps ≤ 200 and n_steps ≤ 10000 to avoid OOM.\n"
         )
