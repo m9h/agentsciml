@@ -1,0 +1,101 @@
+- name: "Multi-scale frequency scheduling"
+  category: scheduling
+  description: >
+    Run FWI starting from low frequencies (40-80 kHz) and gradually increase
+    to high frequencies (200-300 kHz). Low frequencies resolve the large-scale
+    structure and skull shape, while high frequencies resolve internal brain
+    heterogeneity.
+  applicable_when: "FWI starts from a homogeneous model or fails to converge on fine details"
+  code_pattern: |
+    freq_bands=[(40e3, 80e3), (80e3, 160e3), (160e3, 300e3)]
+  tags: [multi-scale, frequency, convergence]
+
+- name: "SIREN (Neural Implicit) parameterization"
+  category: parameterization
+  description: >
+    Represent the sound speed field using a SIREN MLP instead of a voxel grid.
+    SIREN provides natural regularization and can represent sharp interfaces (like the skull)
+    more efficiently with fewer parameters.
+  applicable_when: "Voxel-based FWI is noisy or requires heavy Gaussian smoothing"
+  code_pattern: |
+    config = FWIConfig(parameterization="siren", siren_lr=5e-4)
+  tags: [siren, mlp, implicit, regularization]
+
+- name: "Envelope Loss (Early Inversion)"
+  category: loss
+  description: >
+    Use the envelope of the signal instead of the raw waveform in the early stages
+    of inversion. Envelope loss is more robust to cycle skipping and helps
+    recover large-scale features when the initial model is poor.
+  applicable_when: "Initial model is far from true; high risk of cycle skipping"
+  code_pattern: |
+    config = FWIConfig(loss_fn="envelope", envelope_weight=0.8)
+  tags: [envelope, loss, cycle-skipping]
+
+- name: "Gaussian Gradient Smoothing"
+  category: regularization
+  description: >
+    Apply Gaussian smoothing to the gradient before updating the model.
+    Helps suppress high-frequency noise and stabilizes the inversion.
+  applicable_when: "Velocity updates look 'speckled' or noisy"
+  code_pattern: |
+    config = FWIConfig(gradient_smooth_sigma=4.0)
+  tags: [smoothing, gradient, stability]
+
+- name: "Brain-region masking"
+  category: optimization
+  description: >
+    Restrict velocity updates to the region inside the head or specifically
+    the brain. This avoids wasting computation on the coupling medium (water)
+    where the speed is already known.
+  applicable_when: "Inversion is updating water region or convergence is slow"
+  code_pattern: |
+    config = FWIConfig(mask_type="brain")
+  tags: [masking, ROI, efficiency]
+
+- name: "Attenuation-aware Forward Model"
+  category: physics
+  description: >
+    Include tissue attenuation (alpha) in the forward simulation. The skull
+    is highly attenuating; ignoring this leads to amplitude mismatches in the
+    FWI loss and biased reconstruction.
+  applicable_when: "Reconstructed skull speed is systematically too low or loss hangs"
+  code_pattern: |
+    # (Requires check that forward solver supports alpha)
+    config = FWIConfig(use_attenuation=True)
+  tags: [attenuation, physics, skull]
+
+- name: "Shot-count tradeoffs"
+  category: performance
+  description: >
+    Reduce the number of shots per iteration (shots_per_iter) to speed up
+    the inversion loop. Randomly sampling sources each iteration provides
+    stochastic gradient descent properties.
+  applicable_when: "Inversion is too slow; total iterations are limited by time"
+  code_pattern: |
+    config = FWIConfig(shots_per_iter=4)
+  tags: [sgd, performance, shots]
+
+- name: "Voxel-path learning rate sweep"
+  category: optimization
+  description: >
+    In voxel-based FWI, the learning rate represents the maximum velocity
+    change (m/s) per iteration. Too high causes instability; too low causes
+    slow convergence.
+  applicable_when: "Loss is oscillating or flat"
+  code_pattern: |
+    for lr in [10.0, 50.0, 100.0]:
+        config = FWIConfig(learning_rate=lr)
+  tags: [learning-rate, voxel, optimization]
+
+- name: "MIDA Phantom Validation"
+  category: validation
+  description: >
+    Use the high-resolution MIDA v1.0 anatomical head phantom for validation
+    instead of the parametric synthetic head. Tests robustness to complex
+    anatomical features.
+  applicable_when: "Strategy works on synthetic but real-world performance is questioned"
+  code_pattern: |
+    # (Requires setting phantom='mida' in adapter context)
+    config = FWIConfig(phantom="mida")
+  tags: [mida, anatomy, validation]

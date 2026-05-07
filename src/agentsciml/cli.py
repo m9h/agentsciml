@@ -71,10 +71,12 @@ def run(
     debate_rounds: int,
 ) -> None:
     """Run the evolutionary multi-agent search on a project."""
+    from .adapters.brain_fwi import BrainFWIAdapter
     from .adapters.dmipy import DmipyAdapter
     from .adapters.meta import MetaSciMLAdapter
     from .adapters.parameter_golf import ParameterGolfAdapter
     from .adapters.qcccm import QCCCMAdapter
+    from .adapters.vbjax import VBJaxAdapter
     from .orchestrator import Orchestrator
 
     BUILTIN_ADAPTERS = {
@@ -82,6 +84,8 @@ def run(
         "dmipy": DmipyAdapter,
         "parameter_golf": ParameterGolfAdapter,
         "meta": MetaSciMLAdapter,
+        "vbjax": VBJaxAdapter,
+        "brain_fwi": BrainFWIAdapter,
     }
 
     # Select adapter
@@ -99,6 +103,10 @@ def run(
             project_adapter = DmipyAdapter(project)
         elif "parameter" in project_str or "golf" in project_str:
             project_adapter = ParameterGolfAdapter(project)
+        elif "vbjax" in project_str:
+            project_adapter = VBJaxAdapter(project)
+        elif "brain-fwi" in project_str:
+            project_adapter = BrainFWIAdapter(project)
         else:
             # Try loading adapter.py from project root
             adapter_file = project / "adapter.py"
@@ -181,3 +189,7 @@ def status(project: Path) -> None:
             f"  {i}. [{node.id}] score={node.score:.6f}"
             f" gen={node.generation} — {node.mutation_description}"
         )
+
+
+if __name__ == "__main__":
+    main()
