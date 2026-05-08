@@ -62,6 +62,11 @@ def main(verbose: bool) -> None:
     show_default=True,
     help="Number of structured debate rounds per mutation",
 )
+@click.option(
+    "--modal",
+    is_flag=True,
+    help="Execute experiments on Modal GPUs (H100/A100)",
+)
 def run(
     project: Path,
     budget: float,
@@ -69,6 +74,7 @@ def run(
     knowledge: Path | None,
     adapter: str,
     debate_rounds: int,
+    modal: bool,
 ) -> None:
     """Run the evolutionary multi-agent search on a project."""
     from .adapters.brain_fwi import BrainFWIAdapter
@@ -128,7 +134,11 @@ def run(
     click.echo(f"Budget: ${budget:.2f}")
     click.echo(f"Max generations: {generations}")
     click.echo(f"Debate rounds: {debate_rounds}")
+    if modal:
+        click.echo("Sandbox: Modal (H100)")
     click.echo()
+
+    modal_config = {"gpu": "H100"} if modal else None
 
     orch = Orchestrator(
         project_adapter,
@@ -136,6 +146,7 @@ def run(
         max_generations=generations,
         knowledge_file=knowledge,
         debate_rounds=debate_rounds,
+        modal_config=modal_config,
     )
 
     best = orch.run()

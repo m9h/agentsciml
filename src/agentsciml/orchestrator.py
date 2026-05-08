@@ -74,12 +74,15 @@ class Orchestrator:
         knowledge_file: Path | None = None,
         tree_path: Path | None = None,
         slurm_config: dict | None = None,
+        modal_config: dict | None = None,
     ) -> None:
         self.adapter = adapter
         self.client = anthropic.Anthropic()
         self.cost = CostTracker(budget_usd=budget_usd)
         self.max_generations = max_generations
         self.debate_rounds = debate_rounds
+        self.slurm_config = slurm_config
+        self.modal_config = modal_config
 
         # Solution tree
         tree_path = tree_path or (adapter.project_root / "autoresearch" / "tree.json")
@@ -411,7 +414,12 @@ class Orchestrator:
         technique_used: str | None = None,
     ) -> SolutionRecord | None:
         """Execute code in sandbox, parse results, add to tree."""
-        exec_result = run_experiment(code, self.adapter.project_root)
+        exec_result = run_experiment(
+            code,
+            self.adapter.project_root,
+            slurm_config=self.slurm_config,
+            modal_config=self.modal_config,
+        )
 
         score = 0.0
         if exec_result.status == "ok":

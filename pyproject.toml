@@ -18,6 +18,9 @@ dev = [
     "pytest-cov>=6.0",
     "ruff>=0.9",
 ]
+modal = [
+    "modal>=0.60.0",
+]
 
 [project.scripts]
 agentsciml = "agentsciml.cli:main"

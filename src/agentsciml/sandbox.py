@@ -35,8 +35,9 @@ def run_experiment(
     timeout: int = DEFAULT_TIMEOUT,
     experiment_file: str = "autoresearch/experiment.py",
     slurm_config: dict | None = None,
+    modal_config: dict | None = None,
 ) -> ExecutionResult:
-    """Executes the experiment. Choice of local or Slurm based on slurm_config."""
+    """Executes the experiment. Choice of local, Slurm, or Modal."""
     
     # 1. Write files to project root
     if isinstance(files_or_code, str):
@@ -60,11 +61,82 @@ def run_experiment(
     if "workspace/hypothesis.yaml" in files:
         entry_point = "autoresearch/engine/runner.py"
 
-    if slurm_config:
+    if modal_config:
+        return run_modal(entry_point, project_root, modal_config, timeout)
+    elif slurm_config:
         return run_slurm_remote(entry_point, project_root, slurm_config, timeout)
     else:
         full_entry_path = project_root / entry_point
         return run_local(full_entry_path, project_root, timeout)
+
+def run_modal(entry_point: str, project_root: Path, config: dict, timeout: int) -> ExecutionResult:
+    """Run via Modal on an H100/A100 GPU."""
+    try:
+        import modal
+    except ImportError:
+        logger.error("Modal not installed. Run `uv pip install modal` to use the Modal sandbox.")
+        return ExecutionResult("", "Modal not installed", -1, 0, [], "crash")
+
+    t0 = time.time()
+    app_name = f"agentsciml-{project_root.name}"
+    
+    # Configuration
+    gpu = config.get("gpu", "H100")
+    git_repo = config.get("repo_url", "https://github.com/m9h/brain-fwi.git")
+    git_branch = config.get("branch", "main")
+    
+    # Define the Modal Image
+    image = (
+        modal.Image.debian_slim(python_version="3.11")
+        .apt_install("git", "build_essential")
+        .pip_install("uv")
+        .run_commands(
+            f"git clone --depth 1 --branch {git_branch} {git_repo} /opt/project",
+            "cd /opt/project && uv pip install --system -e '.[cuda12]'",
+        )
+    )
+    
+    app = modal.App(app_name)
+    
+    @app.function(image=image, gpu=gpu, timeout=timeout)
+    def execute_remote(exp_file: str, code: str):
+        import os
+        import subprocess
+        
+        # Write the generated code to the remote path
+        full_path = Path("/opt/project") / exp_file
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+        full_path.write_text(code)
+        
+        # Run the experiment
+        env = os.environ.copy()
+        env["PYTHONPATH"] = f"/opt/project:{env.get('PYTHONPATH', '')}"
+        res = subprocess.run(
+            ["uv", "run", "--no-sync", "python", str(full_path)],
+            cwd="/opt/project",
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+        return res.stdout, res.stderr, res.returncode
+
+    # Extract the code for the entry point
+    entry_path = project_root / entry_point
+    code = entry_path.read_text()
+
+    logger.info("Dispatching %s to Modal (%s GPU)...", entry_point, gpu)
+    try:
+        with app.run():
+            stdout, stderr, returncode = execute_remote.remote(entry_point, code)
+            wall_time = time.time() - t0
+            status = "ok" if returncode == 0 else "crash"
+            result_lines = [l for l in stdout.split("\n") if l.startswith("RESULT|")]
+            if status == "ok" and not result_lines:
+                status = "crash"
+            return ExecutionResult(stdout, stderr, returncode, wall_time, result_lines, status)
+    except Exception as e:
+        logger.exception("Modal execution failed")
+        return ExecutionResult("", str(e), -1, time.time()-t0, [], "crash")
 
 def run_local(entry_point: Path, project_root: Path, timeout: int) -> ExecutionResult:
     """Standard local execution."""
