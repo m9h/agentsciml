@@ -17,7 +17,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_TIMEOUT = 1200 
+DEFAULT_TIMEOUT = 3600 
 
 @dataclass
 class ExecutionResult:

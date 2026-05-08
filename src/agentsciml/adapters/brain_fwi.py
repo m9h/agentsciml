@@ -60,7 +60,7 @@ Available imports from prepare.py (DO NOT MODIFY prepare.py):
 from prepare import (
     FWIConfig,              # Configuration class for FWI parameters
     run_fwi_experiment,     # (config: FWIConfig) -> ExperimentResult
-    ExperimentResult,       # Dataclass with velocity, loss_history, and metrics
+    ExperimentResult,       # Dataclass with brain_rmse, skull_rmse, loss_history, wall_time
     print_result,           # (result) -> None  # prints RESULT| line
     log_result,             # (result) -> None  # appends to results.tsv
     get_commit_hash,        # () -> str
@@ -77,13 +77,13 @@ FWIConfig parameters:
     gradient_smooth_sigma: float           # Gaussian smoothing for gradient
     mask_type: str                         # "head", "brain", "none"
     dx: float                              # Grid spacing (default 0.002)
-    grid_size: int                         # N^3 grid size (default 64 for speed)
+    grid_size: int                         # N^3 grid size (default 64-128)
 
 Experiment structure:
     - Define run_experiment() function
     - Call it in if __name__ == "__main__"
     - Each result must call print_result() AND log_result()
-    - 10-minute timeout — keep sweeps SMALL and grid size LOW (e.g. 64^3).
+    - 30-minute timeout — allow for deeper sweeps and higher-fidelity grids (up to 128^3).
     - Primary metric: brain_rmse (RMSE in the brain region)
     - Target: brain_rmse < 50.0 m/s
 """
@@ -118,8 +118,8 @@ Experiment structure:
     def get_constraints(self) -> str:
         return (
             "Hard constraints:\n"
-            "1. Total experiment wall time < 10 minutes.\n"
-            "2. Keep grid_size <= 96 and iters <= 20 to avoid timeouts.\n"
+            "1. Total experiment wall time < 30 minutes.\n"
+            "2. Keep grid_size <= 128 and iters <= 50 to avoid timeouts.\n"
             "3. DO NOT modify prepare.py.\n"
             "4. Use deterministic seeds for reproducibility.\n"
             "5. Must call print_result() AND log_result() for every experiment.\n"
