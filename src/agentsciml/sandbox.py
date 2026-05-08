@@ -77,6 +77,9 @@ def run_modal(entry_point: str, project_root: Path, config: dict, timeout: int) 
         logger.error("Modal not installed. Run `uv pip install modal` to use the Modal sandbox.")
         return ExecutionResult("", "Modal not installed", -1, 0, [], "crash")
 
+    # Enable output to see build logs if it fails
+    modal.enable_output()
+
     t0 = time.time()
     app_name = f"agentsciml-{project_root.name}"
     
@@ -85,11 +88,13 @@ def run_modal(entry_point: str, project_root: Path, config: dict, timeout: int) 
     git_repo = config.get("repo_url", "https://github.com/m9h/brain-fwi.git")
     git_branch = config.get("branch", "main")
     
-    # Define the Modal Image
+    # Define the Modal Image — match working scripts in brain-fwi
+    cache_bust = "2026-05-08-agentic-fwi"
     image = (
         modal.Image.debian_slim(python_version="3.11")
         .apt_install("git", "build_essential")
         .pip_install("uv")
+        .env({"BRAIN_FWI_CACHE_BUST": cache_bust})
         .run_commands(
             f"git clone --depth 1 --branch {git_branch} {git_repo} /opt/project",
             "cd /opt/project && uv pip install --system -e '.[cuda12]'",
