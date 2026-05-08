@@ -176,8 +176,8 @@ class Orchestrator:
             "api_surface": api_surface,
             "instructions": (
                 "Write a complete experiment.py that serves as an initial baseline. "
-                "Start simple: compare classical Metropolis vs one quantum method "
-                "on a small system. Follow the API surface exactly."
+                "Explore a few key configurations or hyperparameter combinations "
+                "to establish a performance benchmark. Follow the API surface exactly."
             ),
         }
         response = call_agent(

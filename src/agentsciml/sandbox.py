@@ -72,6 +72,13 @@ def run_local(entry_point: Path, project_root: Path, timeout: int) -> ExecutionR
     status = "ok"
     try:
         env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
+        # Ensure project root is in PYTHONPATH so experiments in subdirs can import root modules
+        root_str = str(project_root.absolute())
+        if "PYTHONPATH" in env:
+            env["PYTHONPATH"] = f"{root_str}:{env['PYTHONPATH']}"
+        else:
+            env["PYTHONPATH"] = root_str
+            
         proc = subprocess.run(
             ["uv", "run", "--no-sync", "python", str(entry_point)],
             cwd=str(project_root),
@@ -122,6 +129,7 @@ def run_slurm_remote(entry_point: str, project_root: Path, config: dict, timeout
 #SBATCH --output={out_file}
 
 cd {project_root}
+export PYTHONPATH=$PYTHONPATH:.
 uv run --no-sync python {entry_point}
 """
     script_path = project_root / "slurm_submit.sh"
