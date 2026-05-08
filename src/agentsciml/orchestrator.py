@@ -412,8 +412,14 @@ class Orchestrator:
         generation: int,
         mutation_description: str,
         technique_used: str | None = None,
+        agent_reports: dict[str, str] | None = None,
     ) -> SolutionRecord | None:
         """Execute code in sandbox, parse results, add to tree."""
+        # Track cost before execution (of the agents that generated the code)
+        # Note: _mutate_parent calls multiple agents. We want the cost of this specific mutation.
+        # This is a bit tricky because _execute_and_record is called after the mutation logic.
+        # A better way is to pass the cost to this method.
+        
         exec_result = run_experiment(
             code,
             self.adapter.project_root,
@@ -426,17 +432,28 @@ class Orchestrator:
             score = self.adapter.parse_score(exec_result.result_lines)
             # Legacy score clamp removed to support brain-fwi metric ranges (e.g. scores > 15.0)
 
-        agent_reports = {
+        agent_reports = agent_reports or {}
+        agent_reports.update({
             "stdout_preview": exec_result.stdout[:1000],
             "stderr": exec_result.stderr[:1000],
             "result_lines": "\n".join(exec_result.result_lines[:20]),
-        }
+        })
 
         # If crashed, run diagnostician
         if exec_result.status == "crash":
             diagnosis = self._diagnose_crash(exec_result.stderr)
             if diagnosis:
                 agent_reports["crash_diagnosis"] = diagnosis
+
+        # We'll use the total cost here for now, but we need to fix the summary() 
+        # logic in tree.py to not sum them if they are running totals, 
+        # OR we fix this to be incremental.
+        # Let's make it incremental. 
+        # I will change the Orchestrator to track 'last_recorded_cost'.
+        
+        current_total = self.cost.estimated_cost_usd
+        incremental_cost = current_total - getattr(self, "_last_cost", 0.0)
+        self._last_cost = current_total
 
         node = self.tree.add(
             code=code,
@@ -447,7 +464,7 @@ class Orchestrator:
             technique_used=technique_used,
             status=exec_result.status,
             wall_time=exec_result.wall_time,
-            llm_cost=self.cost.estimated_cost_usd,
+            llm_cost=incremental_cost,
             agent_reports=agent_reports,
         )
         return node

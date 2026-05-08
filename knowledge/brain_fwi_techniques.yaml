@@ -100,6 +100,19 @@
     config = FWIConfig(phantom="mida")
   tags: [mida, anatomy, validation]
 
+- name: "Memory-Efficient Gradient Checkpointing"
+  category: performance
+  description: >
+    Enable gradient checkpointing (remat) in JAX to reduce the peak memory 
+    usage during FWI backpropagation. This allows for much larger grid sizes 
+    (e.g., 192^3 to 256^3) on the same GPU by re-computing forward activations 
+    instead of storing them.
+  applicable_when: "FWI crashes with Out of Memory (OOM) on large grids"
+  code_pattern: |
+    # (Ensure internal solver has checkpointing enabled)
+    config = FWIConfig(grid_size=256, use_checkpointing=True)
+  tags: [memory, checkpointing, remat, scaling]
+
 - name: "Trilayer skull prior"
   category: physics
   description: >
