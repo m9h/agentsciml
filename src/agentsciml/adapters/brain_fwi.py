@@ -20,14 +20,28 @@ class BrainFWIAdapter(ProjectAdapter):
 
     def get_context(self) -> str:
         program = self.project_root / "autoresearch" / "program.md"
+        context = ""
         if program.exists():
-            return program.read_text()
-        return (
-            "Optimize Full Waveform Inversion (FWI) strategies for brain imaging. "
-            "Explore frequency band scheduling, parameterization (Voxel vs SIREN), "
-            "loss functions (L2, envelope, multiscale), and handling of skull "
-            "heterogeneity and attenuation. Metric: brain_rmse (minimize)."
-        )
+            context = program.read_text()
+        else:
+            context = (
+                "Optimize Full Waveform Inversion (FWI) strategies for brain imaging. "
+                "Explore frequency band scheduling, parameterization (Voxel vs SIREN), "
+                "loss functions (L2, envelope, multiscale), and handling of skull "
+                "heterogeneity and attenuation. Metric: brain_rmse (minimize)."
+            )
+        
+        # Inject high-fidelity physical priors from neuro-kb / ITRUSST
+        context += "\n\nPHYSICAL PRIORS (ITRUSST Benchmark BM3):\n"
+        context += "- Water/CSF: c=1500 m/s, rho=1000 kg/m3, alpha=0.0 dB/cm/MHz\n"
+        context += "- Grey/White Matter: c=1560 m/s, rho=1040 kg/m3, alpha=0.6 dB/cm/MHz\n"
+        context += "- Skull (Cortical): c=2800 m/s, rho=1850 kg/m3, alpha=4.0 dB/cm/MHz\n"
+        context += "- Skull (Trabecular): c=2300 m/s, rho=1700 kg/m3, alpha=8.0 dB/cm/MHz\n"
+        context += "\nANATOMICAL CONTEXT:\n"
+        context += "The human skull is a trilayer structure: Outer Cortical (~2mm), Diploe/Trabecular (~4mm), and Inner Cortical (~1mm). "
+        context += "FWI must resolve these thin interfaces to accurately recover the internal brain velocity map."
+        
+        return context
 
     def get_results_history(self) -> str:
         if self.results_path.exists():

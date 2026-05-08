@@ -98,7 +98,7 @@ def run_modal(entry_point: str, project_root: Path, config: dict, timeout: int) 
     
     app = modal.App(app_name)
     
-    @app.function(image=image, gpu=gpu, timeout=timeout)
+    @app.function(image=image, gpu=gpu, timeout=timeout, serialized=True)
     def execute_remote(exp_file: str, code: str):
         import os
         import subprocess

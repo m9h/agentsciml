@@ -99,3 +99,16 @@
     # (Requires setting phantom='mida' in adapter context)
     config = FWIConfig(phantom="mida")
   tags: [mida, anatomy, validation]
+
+- name: "Trilayer skull prior"
+  category: physics
+  description: >
+    Explicitly model the trilayer calvarium (cortical bone, trabecular diploe, cortical bone).
+    The diploe layer has ~500 m/s lower sound speed and 2x higher attenuation. 
+    Neglecting this trilayer structure leads to 10-15 mm shifts in internal brain features.
+  applicable_when: "FWI is applied to realistic head phantoms (MIDA/Clinical) and internal features are blurry"
+  code_pattern: |
+    # (Requires a multi-parameter inversion or SIREN with specific skull-layer loss)
+    # High frequency scheduling is needed to resolve the 1-2mm cortical layers
+    freq_bands=[(40e3, 100e3), (100e3, 250e3), (250e3, 500e3)]
+  tags: [skull, calvarium, trilayer, anatomy]
