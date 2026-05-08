@@ -92,7 +92,7 @@ def run_modal(entry_point: str, project_root: Path, config: dict, timeout: int) 
     cache_bust = "2026-05-08-agentic-fwi-v2"
     image = (
         modal.Image.debian_slim(python_version="3.11")
-        .apt_install("git", "build_essential", "libfftw3-dev", "libhdf5-dev")
+        .apt_install("git", "build-essential", "libfftw3-dev", "libhdf5-dev")
         .pip_install("uv")
         .env({"BRAIN_FWI_CACHE_BUST": cache_bust})
         .run_commands(
