@@ -89,15 +89,16 @@ def run_modal(entry_point: str, project_root: Path, config: dict, timeout: int) 
     git_branch = config.get("branch", "main")
     
     # Define the Modal Image — match working scripts in brain-fwi
-    cache_bust = "2026-05-08-agentic-fwi"
+    cache_bust = "2026-05-08-agentic-fwi-v2"
     image = (
         modal.Image.debian_slim(python_version="3.11")
-        .apt_install("git", "build_essential")
+        .apt_install("git", "build_essential", "libfftw3-dev", "libhdf5-dev")
         .pip_install("uv")
         .env({"BRAIN_FWI_CACHE_BUST": cache_bust})
         .run_commands(
-            f"git clone --depth 1 --branch {git_branch} {git_repo} /opt/project",
-            "cd /opt/project && uv pip install --system -e '.[cuda12]'",
+            f"git clone {git_repo} /opt/brain-fwi",
+            "cd /opt/brain-fwi && uv pip install --system 'jax[cuda12]>=0.5.0'",
+            "cd /opt/brain-fwi && uv pip install --system .",
         )
     )
     
@@ -109,16 +110,16 @@ def run_modal(entry_point: str, project_root: Path, config: dict, timeout: int) 
         import subprocess
         
         # Write the generated code to the remote path
-        full_path = Path("/opt/project") / exp_file
+        full_path = Path("/opt/brain-fwi") / exp_file
         full_path.parent.mkdir(parents=True, exist_ok=True)
         full_path.write_text(code)
         
         # Run the experiment
         env = os.environ.copy()
-        env["PYTHONPATH"] = f"/opt/project:{env.get('PYTHONPATH', '')}"
+        env["PYTHONPATH"] = f"/opt/brain-fwi:{env.get('PYTHONPATH', '')}"
         res = subprocess.run(
-            ["uv", "run", "--no-sync", "python", str(full_path)],
-            cwd="/opt/project",
+            ["python", "-u", str(full_path)],
+            cwd="/opt/brain-fwi",
             capture_output=True,
             text=True,
             env=env,
