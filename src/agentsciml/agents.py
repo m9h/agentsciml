@@ -168,13 +168,13 @@ Output a JSON object with:
 REGISTRY: dict[str, AgentConfig] = {
     "data_analyst": AgentConfig(
         role="data_analyst",
-        model=HAIKU,
+        model=OPUS,
         system_prompt=_DATA_ANALYST_PROMPT,
         max_tokens=2048,
     ),
     "retriever": AgentConfig(
         role="retriever",
-        model=HAIKU,
+        model=OPUS,
         system_prompt=_RETRIEVER_PROMPT,
         max_tokens=512,
     ),
@@ -187,7 +187,7 @@ REGISTRY: dict[str, AgentConfig] = {
     ),
     "critic": AgentConfig(
         role="critic",
-        model=HAIKU,
+        model=OPUS,
         system_prompt=_CRITIC_PROMPT,
         max_tokens=2048,
     ),
@@ -200,20 +200,20 @@ REGISTRY: dict[str, AgentConfig] = {
     ),
     "debugger": AgentConfig(
         role="debugger",
-        model=HAIKU,
+        model=OPUS,
         system_prompt=_DEBUGGER_PROMPT,
         max_tokens=8192,
         temperature=0.2,
     ),
     "result_analyst": AgentConfig(
         role="result_analyst",
-        model=HAIKU,
+        model=OPUS,
         system_prompt=_RESULT_ANALYST_PROMPT,
         max_tokens=2048,
     ),
     "selector": AgentConfig(
         role="selector",
-        model=HAIKU,
+        model=OPUS,
         system_prompt=_SELECTOR_PROMPT,
         max_tokens=1024,
     ),

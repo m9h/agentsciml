@@ -31,15 +31,16 @@ uv sync --all-extras
 
 # Run the orchestration
 echo -e "\n${YELLOW}[2/2] Launching the Swarm Orchestrator...${NC}"
-echo -e "This will run 5 generations with a $5.00 API budget."
+echo -e "This will run 20 generations with a $100.00 API budget."
 echo -e "The Agentic Engineer will propose and run experiments in the ../brain-fwi directory."
 echo ""
 
 PYTHONPATH=src .venv/bin/python -m agentsciml.cli -v run \
   --project ../brain-fwi \
-  --budget 5.0 \
-  --generations 5 \
+  --budget 100.0 \
+  --generations 20 \
   --knowledge knowledge/brain_fwi_techniques.yaml \
-  --debate-rounds 4
+  --debate-rounds 4 \
+  --modal
 
 echo -e "\n${GREEN}Discovery run complete or stopped. Check agentsciml/autoresearch/tree.json for the solution tree.${NC}"
