@@ -424,22 +424,7 @@ class Orchestrator:
         score = 0.0
         if exec_result.status == "ok":
             score = self.adapter.parse_score(exec_result.result_lines)
-            # Sanity check: quantum_advantage > 1.0 is physically suspicious
-            if abs(score) > 1.0:
-                logger.warning(
-                    "Suspicious score %.4f (|score| > 1.0) — likely a bug in generated code. "
-                    "Clamping to 0.0.",
-                    score,
-                )
-                score = 0.0
-                exec_result = exec_result.__class__(
-                    stdout=exec_result.stdout,
-                    stderr=exec_result.stderr,
-                    returncode=exec_result.returncode,
-                    wall_time=exec_result.wall_time,
-                    result_lines=exec_result.result_lines,
-                    status="suspicious",
-                )
+            # Legacy score clamp removed to support brain-fwi metric ranges (e.g. scores > 15.0)
 
         agent_reports = {
             "stdout_preview": exec_result.stdout[:1000],
