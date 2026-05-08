@@ -117,18 +117,33 @@ class SolutionTree:
 
         Always includes the best-scoring node (exploitation).
         Additional parents chosen by weighted random from eligible nodes (exploration).
+        If no successful nodes exist, allows 'crash' or 'timeout' nodes to enable recovery.
         """
         rng = rng or random.Random()
         eligible = [
             n for n in self._nodes.values()
             if n.status == "ok" and self.can_mutate(n.id)
         ]
+        
+        # If no OK nodes, try including crashes/timeouts (useful for root-node failures)
+        if not eligible:
+            eligible = [
+                n for n in self._nodes.values()
+                if n.status in ("crash", "timeout") and self.can_mutate(n.id)
+            ]
+
         if not eligible:
             return []
 
-        # Exploitation: always include the best
-        fn = max if self._direction == "maximize" else min
-        best = fn(eligible, key=lambda n: n.score)
+        # Exploitation: always include the best (or first if all are crashes)
+        if all(n.status != "ok" for n in eligible):
+            # Pick first/random if no OK nodes
+            best = eligible[0]
+        else:
+            fn = max if self._direction == "maximize" else min
+            ok_only = [n for n in eligible if n.status == "ok"]
+            best = fn(ok_only, key=lambda n: n.score)
+            
         parents = [best]
         remaining = [n for n in eligible if n.id != best.id]
 

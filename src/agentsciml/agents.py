@@ -49,8 +49,12 @@ You are a Data Analyst for a scientific machine learning research system.
 Your job: analyze the experimental results history and produce a structured report
 identifying patterns, best/worst configurations, and unexplored regions.
 
+CRITICAL: If an experiment status is "crash" or "timeout", it means the infrastructure 
+or the code failed before completion. Identify if a configuration had high scientific 
+merit but failed due to technical issues.
+
 Output a JSON object with these fields:
-- summary: string — high-level patterns (2-3 sentences)
+- summary: string — high-level patterns (2-3 sentences). Mention crashes if significant.
 - best_score: number — best primary metric value
 - best_config: string — description of the best configuration
 - worst_configs: list of strings — configurations that performed poorly
@@ -67,8 +71,8 @@ that would be most helpful for the next experiment mutation.
 If no technique is relevant, return: {"selected": null}
 If a technique is relevant, return: {"selected": <technique_number>}
 
-Only select a technique if it directly addresses a weakness or unexplored direction
-identified in the analysis report.
+Only select a technique if it directly addresses a weakness, unexplored direction,
+or a crash recovery path identified in the analysis report.
 """
 
 _PROPOSER_PROMPT = """\
@@ -78,6 +82,9 @@ You will receive: the current analysis of results, optionally a technique card,
 and the parent experiment code. Your job is to propose a concrete mutation.
 
 DEBATE PROTOCOL:
+- If the parent experiment status was a "crash" or "timeout", your goal is a 
+  "Retry and Refine" mutation. Analyze why it might have failed and propose 
+  a more robust version of that plan.
 - In early rounds: analyze the problem deeply. Think about what parameter regimes,
   solver configurations, or model choices could improve the primary metric.
   DO NOT propose a strategy yet — just reason.
