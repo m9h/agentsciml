@@ -180,7 +180,7 @@ REGISTRY: dict[str, AgentConfig] = {
     ),
     "proposer": AgentConfig(
         role="proposer",
-        model=SONNET,
+        model=OPUS,
         system_prompt=_PROPOSER_PROMPT,
         max_tokens=4096,
         temperature=0.8,
@@ -193,7 +193,7 @@ REGISTRY: dict[str, AgentConfig] = {
     ),
     "engineer": AgentConfig(
         role="engineer",
-        model=SONNET,
+        model=OPUS,
         system_prompt=_ENGINEER_PROMPT,
         max_tokens=8192,
         temperature=0.3,
