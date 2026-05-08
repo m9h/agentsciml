@@ -89,9 +89,9 @@ def run_modal(entry_point: str, project_root: Path, config: dict, timeout: int) 
     git_branch = config.get("branch", "main")
     
     # Define the Modal Image — match working scripts in brain-fwi
-    cache_bust = "2026-05-08-agentic-fwi-v2"
+    cache_bust = "2026-05-08-agentic-fwi-v3"
     image = (
-        modal.Image.debian_slim(python_version="3.11")
+        modal.Image.debian_slim(python_version="3.14")
         .apt_install("git", "build-essential", "libfftw3-dev", "libhdf5-dev")
         .pip_install("uv")
         .env({"BRAIN_FWI_CACHE_BUST": cache_bust})
