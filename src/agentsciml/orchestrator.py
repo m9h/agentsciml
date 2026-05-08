@@ -447,6 +447,12 @@ class Orchestrator:
             "result_lines": "\n".join(exec_result.result_lines[:20]),
         }
 
+        # If crashed, run diagnostician
+        if exec_result.status == "crash":
+            diagnosis = self._diagnose_crash(exec_result.stderr)
+            if diagnosis:
+                agent_reports["crash_diagnosis"] = diagnosis
+
         node = self.tree.add(
             code=code,
             score=score,
@@ -460,3 +466,27 @@ class Orchestrator:
             agent_reports=agent_reports,
         )
         return node
+
+    def _diagnose_crash(self, stderr: str) -> str | None:
+        """Invoke the diagnostician agent to summarize a crash."""
+        try:
+            diag_response = call_agent(
+                "diagnostician",
+                {"stderr": stderr},
+                client=self.client,
+                cost_tracker=self.cost,
+            )
+            from pydantic import BaseModel
+
+            class Diagnosis(BaseModel):
+                category: str
+                reason: str
+                suggested_fix: str
+
+            diag = parse_json_response(diag_response, Diagnosis)
+            msg = f"[{diag.category.upper()}] {diag.reason}"
+            logger.info("Crash diagnosis: %s", msg)
+            return msg
+        except Exception:
+            logger.exception("Failed to diagnose crash")
+            return None

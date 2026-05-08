@@ -9,7 +9,6 @@ import json
 import re
 from pathlib import Path
 from .base import ProjectAdapter
-from ..orchestrator import Orchestrator
 from .qcccm import QCCCMAdapter
 
 class MetaSciMLAdapter(ProjectAdapter):

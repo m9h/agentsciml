@@ -167,6 +167,21 @@ Output a JSON object with:
 - reasoning: string — brief justification
 """
 
+_DIAGNOSTICIAN_PROMPT = """\
+You are a technical Diagnostician for a scientific ML research system.
+
+Your job: analyze the stderr output from a crashed experiment and identify the 
+root cause of the failure in 1-2 sentences. Distinguish between:
+- Infrastructure issues (OOM, GPU driver, timeout)
+- Coding errors (Syntax, Import, Shape mismatch)
+- Physical instability (Loss exploded, NaN)
+
+Output a JSON object with:
+- category: "infrastructure", "code", or "physics"
+- reason: string — the root cause summary
+- suggested_fix: string — brief technical hint
+"""
+
 
 # ---------------------------------------------------------------------------
 # Agent registry
@@ -223,6 +238,12 @@ REGISTRY: dict[str, AgentConfig] = {
         model=OPUS,
         system_prompt=_SELECTOR_PROMPT,
         max_tokens=1024,
+    ),
+    "diagnostician": AgentConfig(
+        role="diagnostician",
+        model=OPUS,
+        system_prompt=_DIAGNOSTICIAN_PROMPT,
+        max_tokens=512,
     ),
 }
 
